@@ -206,18 +206,44 @@ export class QueryBuilderComponent implements OnInit {
         
         this.relatedEntities = results;
       } else {
-        // For non-Disease categories, show all children as related entities
+        // For non-Disease categories, calculate inverse relations
         const dataKey = this.getDataKeyForEntity(this.selected);
         
-        // For virtual "All" entities, get ALL entities in that category
+        // Get all entities in this category (either all items or just children)
+        let categoryEntities: Entity[];
+        
         if (this.selected.uri?.startsWith('virtual:All')) {
+          // For virtual "All", get everything except the virtual entity itself
           const allItems: Entity[] = (ECMO_DATA as any)[dataKey] || [];
-          // Exclude only the virtual "All" entity itself, keep everything else
-          this.relatedEntities = allItems.filter(i => !i.uri?.startsWith('virtual:'));
+          categoryEntities = allItems.filter(i => !i.uri?.startsWith('virtual:'));
         } else {
-          const children = this.getChildren(this.selected.uri, dataKey);
-          this.relatedEntities = children;
+          // For regular categories, get all descendants recursively
+          categoryEntities = getAllDescendants(this.selected.uri, dataKey);
         }
+        
+        // Calculate inverse relations: find diseases that reference these entities
+        const relatedDiseaseUris = new Set<string>();
+        const categoryEntityUris = new Set(categoryEntities.map(e => e.uri));
+        
+        ECMO_DATA.diseases.forEach(disease => {
+          const rels = ECMO_DATA.relations[disease.uri];
+          if (rels) {
+            RELATION_KEYS.forEach(key => {
+              const values = rels[key] || [];
+              if (values.some(uri => categoryEntityUris.has(uri))) {
+                relatedDiseaseUris.add(disease.uri);
+              }
+            });
+          }
+        });
+        
+        // Store both: the related diseases and the category entities
+        const diseases = Array.from(relatedDiseaseUris)
+          .map(uri => ECMO_DATA.diseases.find(d => d.uri === uri))
+          .filter(Boolean) as Entity[];
+        
+        // Put diseases first, then category entities
+        this.relatedEntities = [...diseases, ...categoryEntities];
       }
       return;
     }
@@ -438,6 +464,16 @@ export class QueryBuilderComponent implements OnInit {
 
   isVirtualAllEntity(entity: Entity): boolean {
     return entity?.uri?.startsWith('virtual:All') || false;
+  }
+
+  // Get diseases from relatedEntities (for non-Disease categories showing inverse relations)
+  getRelatedDiseases(): Entity[] {
+    return this.relatedEntities.filter(e => e.type === 'Disease');
+  }
+
+  // Get non-disease entities from relatedEntities
+  getCategoryInstances(): Entity[] {
+    return this.relatedEntities.filter(e => e.type !== 'Disease');
   }
 
   getRelationLabel(type: string): string {

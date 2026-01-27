@@ -408,6 +408,25 @@
                 </div>
               </div>
             </ng-container>
+
+            <!-- For non-Disease categories: show inverse relations (diseases that use these entities) -->
+            <ng-container *ngIf="selected.type !== 'Disease' && getRelatedDiseases().length > 0">
+              <div class="border-t border-slate-700 pt-3 mt-3">
+                <p class="text-sm text-slate-400 mb-2">
+                  <strong>{{ getReverseRelationLabel(selected.type) }}:</strong>
+                </p>
+                <div class="flex flex-wrap gap-1 ml-2 mb-3">
+                  <button
+                    *ngFor="let disease of getRelatedDiseases()"
+                    (click)="addToQuery(disease)"
+                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80"
+                    [style.backgroundColor]="isInQuery(disease.uri) ? getTypeConfig(disease.type)?.color : getTypeConfig(disease.type)?.bg"
+                    [style.color]="isInQuery(disease.uri) ? 'white' : getTypeConfig(disease.type)?.color">
+                    {{ getTypeConfig(disease.type)?.icon }} {{ disease.label }}
+                  </button>
+                </div>
+              </div>
+            </ng-container>
             
             <!-- Show direct children (diseases/entities in this category) -->
             <div class="border-t border-slate-700 pt-3 mt-3">
@@ -416,7 +435,7 @@
               </p>
               <div class="grid grid-cols-2 gap-2">
                 <button
-                  *ngFor="let child of relatedEntities"
+                  *ngFor="let child of getCategoryInstances()"
                   (click)="addToQuery(child)"
                   class="text-left text-sm px-3 py-2 rounded-lg hover:opacity-80 transition flex items-center gap-2"
                   [style.backgroundColor]="isInQuery(child.uri) ? getTypeConfig(child.type)?.color : getTypeConfig(child.type)?.bg"
