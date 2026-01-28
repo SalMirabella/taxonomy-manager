@@ -1,4 +1,9 @@
 // Types
+export interface QueryEntity {
+  entity: Entity;
+  operator: 'any' | 'all' | 'none';  // OR, AND, NOT
+}
+
 export interface Entity {
   uri: string;
   label: string;

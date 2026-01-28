@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   Entity,
+  QueryEntity,
   Article,
   EntityType,
   TypeConfig,
@@ -33,12 +34,14 @@ export class QueryBuilderComponent implements OnInit {
   // State
   searchQuery = '';
   showDropdown = false;
-  query: Entity[] = [];
+  query: QueryEntity[] = [];
   selected: Entity | null = null;
   queryView: 'natural' | 'technical' = 'natural';
   detailOpen = true;
   expandedGroups: Record<string, boolean> = {};
   expandedCategories: Record<string, boolean> = {};
+  private preventNavigation = false; // Flag to prevent navigation when adding from hover button
+  operatorDropdownOpen: string | null = null; // Track which operator dropdown is open (e.g., "Disease", "Symptom")
 
   // Data references
   categories = CATEGORIES;
@@ -59,6 +62,8 @@ export class QueryBuilderComponent implements OnInit {
     if (this.dropdownRef && !this.dropdownRef.nativeElement.contains(event.target)) {
       this.showDropdown = false;
     }
+    // Close operator dropdown when clicking outside
+    this.operatorDropdownOpen = null;
   }
 
   // Search
@@ -109,14 +114,17 @@ export class QueryBuilderComponent implements OnInit {
     this.searchResults = results.slice(0, 20);
   }
 
-  // Query Management - MODIFICATO per supportare categorie
+  // Query Management - MODIFICATO per supportare categorie e operatori
   addToQuery(entity: Entity): void {
     // Blocca solo gli header, non le categorie
     if (this.isHeader(entity)) return;
     
+    // Determina l'operatore di default basato sul tipo di entità
+    const defaultOperator = this.getDefaultOperator(entity.type);
+    
     // Permetti sia categorie che istanze
-    if (!this.query.find(q => q.uri === entity.uri)) {
-      this.query = [...this.query, entity];
+    if (!this.query.find(q => q.entity.uri === entity.uri)) {
+      this.query = [...this.query, { entity, operator: defaultOperator }];
     }
     
     this.selected = entity;
@@ -126,8 +134,42 @@ export class QueryBuilderComponent implements OnInit {
     this.updateRelatedEntities();
   }
 
+  getDefaultOperator(type: EntityType): 'any' | 'all' | 'none' {
+    // Single-valued properties (Disease, Hazard): default OR (any)
+    // Multi-valued properties (Symptom, Pathogen, Vector, Host): default AND (all)
+    const multiValuedTypes: EntityType[] = ['Symptom', 'Pathogen', 'Vector', 'Host'];
+    return multiValuedTypes.includes(type) ? 'any' : 'any';  // Start with 'any' for all
+  }
+
+  setOperatorForType(type: EntityType, operator: 'any' | 'all' | 'none'): void {
+    // Update operator for all entities of this type in the query
+    this.query = this.query.map(qe => {
+      if (qe.entity.type === type) {
+        return { ...qe, operator };
+      }
+      return qe;
+    });
+    this.updateQueryResults();
+  }
+
+  getOperatorForType(type: EntityType): 'any' | 'all' | 'none' {
+    // Get the operator for entities of this type (use first one found)
+    const found = this.query.find(qe => qe.entity.type === type);
+    return found ? found.operator : 'any';
+  }
+
+  getEntitiesByType(type: EntityType): QueryEntity[] {
+    return this.query.filter(qe => qe.entity.type === type);
+  }
+
+  getTypesInQuery(): EntityType[] {
+    const types = new Set<EntityType>();
+    this.query.forEach(qe => types.add(qe.entity.type));
+    return Array.from(types);
+  }
+
   removeFromQuery(uri: string): void {
-    this.query = this.query.filter(q => q.uri !== uri);
+    this.query = this.query.filter(q => q.entity.uri !== uri);
     if (this.selected?.uri === uri) {
       this.selected = null;
     }
@@ -143,6 +185,11 @@ export class QueryBuilderComponent implements OnInit {
 
   selectEntity(entity: Entity): void {
     if (this.isHeader(entity)) return;
+    if (this.preventNavigation) {
+      // Don't navigate if we're in the middle of adding without navigation
+      this.preventNavigation = false;
+      return;
+    }
     this.selected = entity;
     this.detailOpen = true;
     this.updateRelatedEntities();
@@ -155,19 +202,53 @@ export class QueryBuilderComponent implements OnInit {
       return;
     }
 
+    // Group query entities by type
+    const groupedByType: Record<EntityType, QueryEntity[]> = {} as any;
+    this.query.forEach(qe => {
+      const type = qe.entity.type;
+      if (!groupedByType[type]) {
+        groupedByType[type] = [];
+      }
+      groupedByType[type].push(qe);
+    });
+
     this.queryResults = EIOS_ARTICLES.filter(article => {
-      return this.query.every(q => {
-        // Se è una categoria, matcha se l'articolo contiene QUALSIASI discendente
-        if (q.isCategory) {
-          const dataKey = this.getDataKeyForEntity(q);
-          const descendants = getAllDescendants(q.uri, dataKey);
-          return descendants.some(child => article.entities.includes(child.uri));
-        }
-        
-        // Se è un'istanza, match diretto
-        return article.entities.includes(q.uri);
+      // For each type group, check if article matches according to operator
+      return Object.entries(groupedByType).every(([type, queryEntities]) => {
+        return this.matchesGroup(article, queryEntities as QueryEntity[]);
       });
     });
+  }
+
+  private matchesGroup(article: Article, queryEntities: QueryEntity[]): boolean {
+    // All entities in this group should have the same operator (we'll use the first one)
+    // In future we can support different operators for different entities
+    const operator = queryEntities[0].operator;
+    
+    const matches = queryEntities.map(qe => this.matchesEntity(article, qe.entity));
+    
+    switch (operator) {
+      case 'any':  // OR - at least one must match
+        return matches.some(m => m);
+      case 'all':  // AND - all must match
+        return matches.every(m => m);
+      case 'none': // NOT - none must match
+        return matches.every(m => !m);
+      default:
+        return matches.some(m => m);
+    }
+  }
+
+  private matchesEntity(article: Article, entity: Entity): boolean {
+    // Se è una categoria, matcha se l'articolo contiene QUALSIASI discendente
+    if (entity.isCategory) {
+      const dataKey = this.getDataKeyForEntity(entity);
+      const descendants = getAllDescendants(entity.uri, dataKey);
+      return descendants.some(child => article.entities.includes(child.uri));
+    }
+    
+    // Se è un'istanza, match diretto
+    return article.entities.includes(entity.uri);
   }
 
   updateRelatedEntities(): void {
@@ -315,8 +396,9 @@ export class QueryBuilderComponent implements OnInit {
     
     // Add all selectable items to query
     selectableItems.forEach(item => {
-      if (!this.query.find(q => q.uri === item.uri)) {
-        this.query = [...this.query, item];
+      if (!this.query.find(q => q.entity.uri === item.uri)) {
+        const defaultOperator = this.getDefaultOperator(item.type);
+        this.query = [...this.query, { entity: item, operator: defaultOperator }];
       }
     });
     
@@ -332,7 +414,7 @@ export class QueryBuilderComponent implements OnInit {
   // Check if "All [Category]" is selected
   isAllCategorySelected(key: string): boolean {
     const virtualUri = `virtual:All${key.charAt(0).toUpperCase() + key.slice(1, -1)}s`;
-    return this.query.some(q => q.uri === virtualUri);
+    return this.query.some(q => q.entity.uri === virtualUri);
   }
 
   // Toggle "All [Category]" selection
@@ -344,10 +426,11 @@ export class QueryBuilderComponent implements OnInit {
     
     if (this.isAllCategorySelected(key)) {
       // Remove the virtual "All" entity
-      this.query = this.query.filter(q => q.uri !== virtualEntity.uri);
+      this.query = this.query.filter(q => q.entity.uri !== virtualEntity.uri);
     } else {
       // Add the virtual "All" entity
-      this.query = [...this.query, virtualEntity];
+      const defaultOperator = this.getDefaultOperator(virtualEntity.type);
+      this.query = [...this.query, { entity: virtualEntity, operator: defaultOperator }];
       
       // Expand the category
       this.expandedCategories = {
@@ -379,8 +462,9 @@ export class QueryBuilderComponent implements OnInit {
     
     if (virtualEntity) {
       // Add to query
-      if (!this.query.find(q => q.uri === virtualEntity.uri)) {
-        this.query = [...this.query, virtualEntity];
+      if (!this.query.find(q => q.entity.uri === virtualEntity.uri)) {
+        const defaultOperator = this.getDefaultOperator(virtualEntity.type);
+        this.query = [...this.query, { entity: virtualEntity, operator: defaultOperator }];
       }
       
       // Select for details panel
@@ -415,7 +499,7 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   isInQuery(uri: string): boolean {
-    return !!this.query.find(q => q.uri === uri);
+    return !!this.query.find(q => q.entity.uri === uri);
   }
 
   getChildren(parentUri: string, dataKey: string): Entity[] {
@@ -445,16 +529,43 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   // Natural language helpers
-  getGroupedQuery(): { type: EntityType; items: Entity[] }[] {
-    const grouped: Record<string, Entity[]> = {};
-    this.query.forEach(q => {
-      if (!grouped[q.type]) grouped[q.type] = [];
-      grouped[q.type].push(q);
+  getGroupedQuery(): { type: EntityType; operator: 'any' | 'all' | 'none'; items: Entity[] }[] {
+    const grouped: Record<string, QueryEntity[]> = {};
+    this.query.forEach(qe => {
+      if (!grouped[qe.entity.type]) grouped[qe.entity.type] = [];
+      grouped[qe.entity.type].push(qe);
     });
-    return Object.entries(grouped).map(([type, items]) => ({
+    return Object.entries(grouped).map(([type, queryEntities]) => ({
       type: type as EntityType,
-      items,
+      operator: queryEntities[0].operator,  // Use first operator (all should be same for a type)
+      items: queryEntities.map(qe => qe.entity),
     }));
+  }
+
+  getOperatorLabel(operator: 'any' | 'all' | 'none'): string {
+    switch (operator) {
+      case 'any': return 'any of';
+      case 'all': return 'all of';
+      case 'none': return 'none of';
+      default: return 'any of';
+    }
+  }
+
+  toggleOperatorDropdown(type: EntityType, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.operatorDropdownOpen = this.operatorDropdownOpen === type ? null : type;
+  }
+
+  isOperatorDropdownOpen(type: EntityType): boolean {
+    return this.operatorDropdownOpen === type;
+  }
+
+  selectOperator(type: EntityType, operator: 'any' | 'all' | 'none', event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.setOperatorForType(type, operator);
+    this.operatorDropdownOpen = null;
   }
 
   getTypeLabel(type: EntityType, count: number): string {
@@ -467,12 +578,25 @@ export class QueryBuilderComponent implements OnInit {
     event.stopImmediatePropagation();
     event.preventDefault();
     
-    // Add to query WITHOUT changing selected entity (no navigation)
-    if (this.isHeader(entity)) return;
+    // Set flag to prevent any navigation that might be triggered
+    this.preventNavigation = true;
     
-    if (!this.query.find(q => q.uri === entity.uri)) {
-      this.query = [...this.query, entity];
+    // Add to query WITHOUT changing selected entity (no navigation)
+    if (this.isHeader(entity)) {
+      this.preventNavigation = false;
+      return;
     }
+    
+    const defaultOperator = this.getDefaultOperator(entity.type);
+    
+    if (!this.query.find(q => q.entity.uri === entity.uri)) {
+      this.query = [...this.query, { entity, operator: defaultOperator }];
+    }
+    
+    // Reset flag after a short delay to ensure any queued events are processed
+    setTimeout(() => {
+      this.preventNavigation = false;
+    }, 100);
     
     // Do NOT set this.selected = entity (this would trigger navigation)
     this.searchQuery = '';
