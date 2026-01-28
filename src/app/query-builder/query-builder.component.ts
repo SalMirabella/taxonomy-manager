@@ -86,8 +86,8 @@ export class QueryBuilderComponent implements OnInit {
 
     if (cat) {
       const items = (ECMO_DATA as any)[cat.key] || [];
-      // Include top-level categories/instances but exclude virtual "All" entities
-      const filtered = items.filter((i: Entity) => !i.parent && !i.uri?.startsWith('virtual:'));
+      // Include all items except virtual "All" entities
+      const filtered = items.filter((i: Entity) => !i.uri?.startsWith('virtual:'));
       this.searchResults = [
         { isHeader: true, label: cat.label, type: items[0]?.type, key: cat.key },
         ...filtered,
@@ -215,7 +215,10 @@ export class QueryBuilderComponent implements OnInit {
         if (this.selected.uri?.startsWith('virtual:All')) {
           // For virtual "All", get everything except the virtual entity itself
           const allItems: Entity[] = (ECMO_DATA as any)[dataKey] || [];
+          console.log('All items in dataKey:', allItems.length);
           categoryEntities = allItems.filter(i => !i.uri?.startsWith('virtual:'));
+          console.log('Category entities after filter:', categoryEntities.length);
+          console.log('Category entities:', categoryEntities.map(e => e.label));
         } else {
           // For regular categories, get all descendants recursively
           categoryEntities = getAllDescendants(this.selected.uri, dataKey);
@@ -241,6 +244,8 @@ export class QueryBuilderComponent implements OnInit {
         const diseases = Array.from(relatedDiseaseUris)
           .map(uri => ECMO_DATA.diseases.find(d => d.uri === uri))
           .filter(Boolean) as Entity[];
+        
+        console.log('Related diseases:', diseases.length);
         
         // Put diseases first, then category entities
         this.relatedEntities = [...diseases, ...categoryEntities];
