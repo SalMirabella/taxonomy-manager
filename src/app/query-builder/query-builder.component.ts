@@ -462,6 +462,25 @@ export class QueryBuilderComponent implements OnInit {
     return count > 1 ? cfg.plural : cfg.singular;
   }
 
+  addToQueryWithoutNavigation(entity: Entity, event: Event): void {
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    
+    // Add to query WITHOUT changing selected entity (no navigation)
+    if (this.isHeader(entity)) return;
+    
+    if (!this.query.find(q => q.uri === entity.uri)) {
+      this.query = [...this.query, entity];
+    }
+    
+    // Do NOT set this.selected = entity (this would trigger navigation)
+    this.searchQuery = '';
+    this.showDropdown = false;
+    this.updateQueryResults();
+    // Do NOT call updateRelatedEntities() since we're not changing selected
+  }
+
   isVirtualAllEntity(entity: Entity): boolean {
     return entity?.uri?.startsWith('virtual:All') || false;
   }
