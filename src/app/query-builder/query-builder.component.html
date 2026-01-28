@@ -438,8 +438,8 @@
                     </button>
                     <button
                       *ngIf="!isInQuery(e.uri)"
-                      (click)="addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      (click)="addToQuery(e); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
                       title="Add to query">
                       +
                     </button>
@@ -468,8 +468,8 @@
                     </button>
                     <button
                       *ngIf="!isInQuery(disease.uri)"
-                      (click)="addToQueryWithoutNavigation(disease, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      (click)="addToQuery(disease); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
                       title="Add to query">
                       +
                     </button>
@@ -499,7 +499,7 @@
                   </button>
                   <button
                     *ngIf="!isInQuery(child.uri)"
-                    (click)="addToQueryWithoutNavigation(child, $event)"
+                    (click)="addToQuery(child); $event.stopPropagation()"
                     class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
                     title="Add to query">
                     +
@@ -545,8 +545,8 @@
                     </button>
                     <button
                       *ngIf="!isInQuery(e.uri)"
-                      (click)="addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      (click)="addToQuery(e); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
                       title="Add to query">
                       +
                     </button>
@@ -581,8 +581,8 @@
                 </button>
                 <button
                   *ngIf="!isInQuery(e.uri)"
-                  (click)="addToQueryWithoutNavigation(e, $event)"
-                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                  (click)="addToQuery(e); $event.stopPropagation()"
+                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
                   title="Add to query">
                   +
                 </button>
