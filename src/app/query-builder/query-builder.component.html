@@ -25,8 +25,17 @@
           (ngModelChange)="onSearchChange()"
           (focus)="onSearchFocus()"
           placeholder="Search diseases, symptoms, vectors, hosts, hazards..."
-          class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 placeholder-slate-400"
+          class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 pr-10 outline-none focus:border-indigo-500 placeholder-slate-400"
         />
+        
+        <!-- Clear button -->
+        <button
+          *ngIf="searchQuery.length > 0"
+          (click)="searchQuery = ''; updateSearchResults(); showDropdown = false"
+          class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-400 hover:text-white transition"
+          title="Clear search">
+          ✕
+        </button>
 
         <!-- Dropdown -->
         <div 
@@ -364,11 +373,12 @@
               [style.color]="getSelectedConfig()?.color">
               Remove from query
             </span>
-            <span
+            <button
               (click)="$event.stopPropagation(); selected = null"
-              class="opacity-70 hover:opacity-100 text-lg cursor-pointer">
+              class="w-7 h-7 rounded-full bg-slate-700/50 hover:bg-slate-600 flex items-center justify-center text-slate-300 hover:text-white transition"
+              title="Close detail panel">
               ✕
-            </span>
+            </button>
             <span class="text-slate-400 text-lg ml-1">
               {{ detailOpen ? '▼' : '▶' }}
             </span>
@@ -397,14 +407,25 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2 mb-3">
-                  <button
+                  <div
                     *ngFor="let e of group.entities"
-                    (click)="addToQuery(e)"
-                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80"
-                    [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                    [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
-                    {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
-                  </button>
+                    class="relative group/entity">
+                    <button
+                      (click)="selectEntity(e)"
+                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button
+                      *ngIf="!isInQuery(e.uri)"
+                      (click)="addToQuery(e); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      title="Add to query">
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             </ng-container>
@@ -416,14 +437,25 @@
                   <strong>{{ getReverseRelationLabel(selected.type) }}:</strong>
                 </p>
                 <div class="flex flex-wrap gap-1 ml-2 mb-3">
-                  <button
+                  <div
                     *ngFor="let disease of getRelatedDiseases()"
-                    (click)="addToQuery(disease)"
-                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80"
-                    [style.backgroundColor]="isInQuery(disease.uri) ? getTypeConfig(disease.type)?.color : getTypeConfig(disease.type)?.bg"
-                    [style.color]="isInQuery(disease.uri) ? 'white' : getTypeConfig(disease.type)?.color">
-                    {{ getTypeConfig(disease.type)?.icon }} {{ disease.label }}
-                  </button>
+                    class="relative group/entity">
+                    <button
+                      (click)="selectEntity(disease)"
+                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === disease.uri}"
+                      [style.backgroundColor]="isInQuery(disease.uri) ? getTypeConfig(disease.type)?.color : getTypeConfig(disease.type)?.bg"
+                      [style.color]="isInQuery(disease.uri) ? 'white' : getTypeConfig(disease.type)?.color">
+                      {{ getTypeConfig(disease.type)?.icon }} {{ disease.label }}
+                    </button>
+                    <button
+                      *ngIf="!isInQuery(disease.uri)"
+                      (click)="addToQuery(disease); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      title="Add to query">
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             </ng-container>
@@ -434,16 +466,27 @@
                 <strong>{{ selected.type === 'Disease' ? 'Diseases' : 'Entities' }}</strong> in this category:
               </p>
               <div class="grid grid-cols-2 gap-2">
-                <button
+                <div
                   *ngFor="let child of (selected.type === 'Disease' ? getDiseaseInstances() : getCategoryInstances())"
-                  (click)="addToQuery(child)"
-                  class="text-left text-sm px-3 py-2 rounded-lg hover:opacity-80 transition flex items-center gap-2"
-                  [style.backgroundColor]="isInQuery(child.uri) ? getTypeConfig(child.type)?.color : getTypeConfig(child.type)?.bg"
-                  [style.color]="isInQuery(child.uri) ? 'white' : getTypeConfig(child.type)?.color">
-                  <span *ngIf="child.isCategory">📂</span>
-                  <span *ngIf="!child.isCategory">{{ getTypeConfig(child.type)?.icon }}</span>
-                  <span>{{ child.label }}</span>
-                </button>
+                  class="relative group/entity">
+                  <button
+                    (click)="selectEntity(child)"
+                    class="w-full text-left text-sm px-3 py-2 rounded-lg hover:opacity-80 transition flex items-center gap-2"
+                    [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === child.uri}"
+                    [style.backgroundColor]="isInQuery(child.uri) ? getTypeConfig(child.type)?.color : getTypeConfig(child.type)?.bg"
+                    [style.color]="isInQuery(child.uri) ? 'white' : getTypeConfig(child.type)?.color">
+                    <span *ngIf="child.isCategory">📂</span>
+                    <span *ngIf="!child.isCategory">{{ getTypeConfig(child.type)?.icon }}</span>
+                    <span>{{ child.label }}</span>
+                  </button>
+                  <button
+                    *ngIf="!isInQuery(child.uri)"
+                    (click)="addToQuery(child); $event.stopPropagation()"
+                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                    title="Add to query">
+                    +
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -462,14 +505,25 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <button
+                  <div
                     *ngFor="let e of group.entities"
-                    (click)="addToQuery(e)"
-                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80"
-                    [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                    [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
-                    {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
-                  </button>
+                    class="relative group/entity">
+                    <button
+                      (click)="selectEntity(e)"
+                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button
+                      *ngIf="!isInQuery(e.uri)"
+                      (click)="addToQuery(e); $event.stopPropagation()"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                      title="Add to query">
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             </ng-container>
@@ -487,14 +541,25 @@
             </p>
             
             <div *ngIf="relatedEntities.length > 0" class="flex flex-wrap gap-1">
-              <button
+              <div
                 *ngFor="let e of relatedEntities"
-                (click)="addToQuery(e)"
-                class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80"
-                [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
-                {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
-              </button>
+                class="relative group/entity">
+                <button
+                  (click)="selectEntity(e)"
+                  class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition"
+                  [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                  [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                  [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                  {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                </button>
+                <button
+                  *ngIf="!isInQuery(e.uri)"
+                  (click)="addToQuery(e); $event.stopPropagation()"
+                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600"
+                  title="Add to query">
+                  +
+                </button>
+              </div>
             </div>
             
             <p *ngIf="relatedEntities.length === 0" class="text-slate-500">
