@@ -146,52 +146,66 @@
             
             <!-- Natural Language -->
             <p *ngIf="queryView === 'natural'" class="text-slate-300 leading-relaxed flex flex-wrap items-center gap-1">
-              <span>Select all entities that have</span>
-              <ng-container *ngFor="let group of getGroupedQuery(); let groupIdx = index">
-                <span *ngIf="groupIdx > 0">, </span>
+              <span>Select all entities that</span>
+              
+              <ng-container *ngFor="let qe of query; let idx = index">
+                <!-- Separator -->
+                <span *ngIf="idx > 0">, </span>
                 
-                <!-- Operator Button with Dropdown -->
+                <!-- Operator Dropdown (for ALL including first) -->
                 <span class="relative inline-flex items-center">
                   <button
-                    (click)="toggleOperatorDropdown(group.type, $event)"
-                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-slate-700/50 transition text-sm font-medium"
-                    [style.color]="getTypeConfig(group.type)?.color">
-                    {{ getOperatorLabel(group.operator) }}
+                    (click)="toggleOperatorDropdownForEntity(qe.entity.uri, $event)"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded transition text-sm font-medium bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30">
+                    {{ idx === 0 ? getFirstOperatorLabel(qe.operator) : getSubsequentOperatorLabel(qe.operator) }}
                     <span class="text-xs opacity-70">▼</span>
                   </button>
                   
                   <!-- Dropdown Menu -->
                   <div
-                    *ngIf="isOperatorDropdownOpen(group.type)"
-                    class="absolute top-full left-0 mt-1 bg-slate-800 border rounded-lg shadow-xl z-[100] min-w-[120px]"
-                    [style.borderColor]="getTypeConfig(group.type)?.color + '40'">
+                    *ngIf="isOperatorDropdownOpenForEntity(qe.entity.uri)"
+                    class="absolute top-full left-0 mt-1 bg-slate-800 border border-indigo-500/40 rounded-lg shadow-xl z-[100] min-w-[100px]">
                     <button
-                      *ngFor="let op of ['any', 'all', 'none']"
-                      (click)="selectOperator(group.type, $any(op), $event)"
-                      class="w-full text-left px-3 py-2 hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg transition text-sm"
-                      [class.bg-slate-700]="group.operator === op"
-                      [style.color]="getTypeConfig(group.type)?.color">
-                      {{ getOperatorLabel($any(op)) }}
-                      <span *ngIf="group.operator === op" class="float-right">✓</span>
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'any', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 first:rounded-t-lg transition text-sm text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'any'">
+                      {{ idx === 0 ? 'have' : 'or' }}
+                      <span *ngIf="qe.operator === 'any'" class="float-right">✓</span>
+                    </button>
+                    <button
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'all', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 transition text-sm text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'all'">
+                      {{ idx === 0 ? 'have' : 'and' }}
+                      <span *ngIf="qe.operator === 'all'" class="float-right">✓</span>
+                    </button>
+                    <button
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'none', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 last:rounded-b-lg transition text-sm text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'none'">
+                      {{ idx === 0 ? 'exclude' : 'not' }}
+                      <span *ngIf="qe.operator === 'none'" class="float-right">✓</span>
                     </button>
                   </div>
                 </span>
                 
-                <ng-container *ngFor="let q of group.items; let idx = index">
-                  <span *ngIf="idx > 0 && idx < group.items.length - 1">, </span>
-                  <span *ngIf="idx > 0 && idx === group.items.length - 1"> and </span>
-                  <button
-                    (click)="selectEntity(q)"
-                    class="font-medium hover:underline inline-flex items-center gap-1"
-                    [style.color]="getTypeConfig(q.type)?.color">
-                    {{ getEntityDescription(q) }}
-                    <button 
-                      (click)="removeFromQuery(q.uri); $event.stopPropagation()"
-                      class="text-xs opacity-70 hover:opacity-100">✕</button>
-                  </button>
-                </ng-container>
-                <span *ngIf="!isVirtualAllEntity(group.items[0])" class="text-slate-400"> {{ getTypeLabel(group.type, group.items.length) }}</span>
+                <!-- Entity -->
+                <button
+                  (click)="selectEntity(qe.entity)"
+                  class="font-medium hover:underline inline-flex items-center gap-1"
+                  [style.color]="getTypeConfig(qe.entity.type)?.color">
+                  {{ getEntityDescription(qe.entity) }}
+                  <button 
+                    (click)="removeFromQuery(qe.entity.uri); $event.stopPropagation()"
+                    class="text-xs opacity-70 hover:opacity-100">✕</button>
+                </button>
+                
+                <!-- Type Label (at the end) -->
+                <span *ngIf="idx === query.length - 1 && !isVirtualAllEntity(qe.entity)" class="text-slate-400">
+                  {{ getTypeLabel(qe.entity.type, 1) }}
+                </span>
               </ng-container>
+              
               <span class="text-emerald-400 ml-1">→ {{ queryResults.length }} results</span>
             </p>
 
@@ -200,64 +214,60 @@
               <span class="text-indigo-400">SELECT</span>
               <span class="text-emerald-400"> * </span>
               <span class="text-indigo-400">WHERE </span>
-              <ng-container *ngFor="let group of getGroupedQuery(); let groupIdx = index">
-                <span *ngIf="groupIdx > 0" class="text-indigo-400"> AND </span>
-                <span class="text-slate-500">(</span>
-                
-                <!-- Operator Button with Dropdown -->
-                <span class="relative inline-flex items-center">
+              
+              <ng-container *ngFor="let qe of query; let idx = index">
+                <!-- Operator Dropdown (show for first only if it's NOT) -->
+                <span *ngIf="idx > 0 || qe.operator === 'none'" class="relative inline-flex items-center">
                   <button
-                    (click)="toggleOperatorDropdown(group.type, $event)"
-                    class="inline-flex items-center gap-0.5 px-1 py-0.5 mx-0.5 rounded hover:bg-slate-700/50 transition text-xs font-mono text-indigo-400">
-                    {{ group.operator === 'any' ? 'OR' : group.operator === 'all' ? 'AND' : 'NOT' }}
+                    (click)="toggleOperatorDropdownForEntity(qe.entity.uri, $event)"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded transition text-xs font-mono bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30">
+                    {{ qe.operator === 'any' ? 'OR' : qe.operator === 'all' ? 'AND' : 'NOT' }}
                     <span class="text-[10px] opacity-70">▼</span>
                   </button>
                   
                   <!-- Dropdown Menu -->
                   <div
-                    *ngIf="isOperatorDropdownOpen(group.type)"
+                    *ngIf="isOperatorDropdownOpenForEntity(qe.entity.uri)"
                     class="absolute top-full left-0 mt-1 bg-slate-800 border border-indigo-500/40 rounded-lg shadow-xl z-[100] min-w-[100px]">
                     <button
-                      (click)="selectOperator(group.type, 'any', $event)"
-                      class="w-full text-left px-3 py-2 hover:bg-slate-700 first:rounded-t-lg text-xs font-mono text-indigo-400"
-                      [class.bg-slate-700]="group.operator === 'any'">
-                      OR
-                      <span *ngIf="group.operator === 'any'" class="float-right">✓</span>
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'any', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 first:rounded-t-lg text-xs font-mono text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'any'"
+                      [class.text-slate-500]="idx === 0 && qe.operator !== 'any'">
+                      {{ idx === 0 ? '(include)' : 'OR' }}
+                      <span *ngIf="qe.operator === 'any'" class="float-right">✓</span>
                     </button>
                     <button
-                      (click)="selectOperator(group.type, 'all', $event)"
-                      class="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs font-mono text-indigo-400"
-                      [class.bg-slate-700]="group.operator === 'all'">
-                      AND
-                      <span *ngIf="group.operator === 'all'" class="float-right">✓</span>
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'all', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs font-mono text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'all'"
+                      [class.text-slate-500]="idx === 0 && qe.operator !== 'all'">
+                      {{ idx === 0 ? '(include)' : 'AND' }}
+                      <span *ngIf="qe.operator === 'all'" class="float-right">✓</span>
                     </button>
                     <button
-                      (click)="selectOperator(group.type, 'none', $event)"
-                      class="w-full text-left px-3 py-2 hover:bg-slate-700 last:rounded-b-lg text-xs font-mono text-indigo-400"
-                      [class.bg-slate-700]="group.operator === 'none'">
-                      NOT
-                      <span *ngIf="group.operator === 'none'" class="float-right">✓</span>
+                      (click)="selectOperatorForEntity(qe.entity.uri, 'none', $event)"
+                      class="w-full text-left px-3 py-2 hover:bg-slate-700 last:rounded-b-lg text-xs font-mono text-indigo-300"
+                      [class.bg-slate-700]="qe.operator === 'none'">
+                      {{ idx === 0 ? 'NOT' : 'AND NOT' }}
+                      <span *ngIf="qe.operator === 'none'" class="float-right">✓</span>
                     </button>
                   </div>
                 </span>
                 
-                <ng-container *ngFor="let q of group.items; let idx = index">
-                  <span *ngIf="idx > 0" class="text-indigo-400">
-                    {{ group.operator === 'any' ? ' OR ' : group.operator === 'all' ? ' AND ' : ' AND NOT ' }}
-                  </span>
-                  <span class="text-slate-300">{{ getTypeConfig(q.type)?.label }}</span>
-                  <span class="text-slate-500"> = </span>
-                  <button
-                    (click)="selectEntity(q)"
-                    class="text-amber-400 hover:underline cursor-pointer inline-flex items-center gap-1">
-                    "{{ q.label }}"<span *ngIf="q.isCategory" class="text-slate-500">*</span>
-                    <button 
-                      (click)="removeFromQuery(q.uri); $event.stopPropagation()"
-                      class="text-xs text-slate-500 hover:text-white">✕</button>
-                  </button>
-                </ng-container>
-                <span class="text-slate-500">)</span>
+                <!-- Entity -->
+                <span class="text-slate-300">{{ getTypeConfig(qe.entity.type)?.label }}</span>
+                <span class="text-slate-500"> = </span>
+                <button
+                  (click)="selectEntity(qe.entity)"
+                  class="text-amber-400 hover:underline cursor-pointer inline-flex items-center gap-1">
+                  "{{ qe.entity.label }}"<span *ngIf="qe.entity.isCategory" class="text-slate-500">*</span>
+                  <button 
+                    (click)="removeFromQuery(qe.entity.uri); $event.stopPropagation()"
+                    class="text-xs text-slate-500 hover:text-white">✕</button>
+                </button>
               </ng-container>
+              
               <span class="text-emerald-400 ml-2">→ {{ queryResults.length }} results</span>
             </div>
           </div>

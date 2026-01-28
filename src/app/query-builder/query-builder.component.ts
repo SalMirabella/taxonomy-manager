@@ -152,6 +152,17 @@ export class QueryBuilderComponent implements OnInit {
     this.updateQueryResults();
   }
 
+  setOperatorForEntity(uri: string, operator: 'any' | 'all' | 'none'): void {
+    // Update operator for a specific entity
+    this.query = this.query.map(qe => {
+      if (qe.entity.uri === uri) {
+        return { ...qe, operator };
+      }
+      return qe;
+    });
+    this.updateQueryResults();
+  }
+
   getOperatorForType(type: EntityType): 'any' | 'all' | 'none' {
     // Get the operator for entities of this type (use first one found)
     const found = this.query.find(qe => qe.entity.type === type);
@@ -202,41 +213,44 @@ export class QueryBuilderComponent implements OnInit {
       return;
     }
 
-    // Group query entities by type
-    const groupedByType: Record<EntityType, QueryEntity[]> = {} as any;
-    this.query.forEach(qe => {
-      const type = qe.entity.type;
-      if (!groupedByType[type]) {
-        groupedByType[type] = [];
-      }
-      groupedByType[type].push(qe);
-    });
-
     this.queryResults = EIOS_ARTICLES.filter(article => {
-      // For each type group, check if article matches according to operator
-      return Object.entries(groupedByType).every(([type, queryEntities]) => {
-        return this.matchesGroup(article, queryEntities as QueryEntity[]);
-      });
+      // Start with true/false based on first entity's operator
+      const firstQe = this.query[0];
+      const firstMatch = this.matchesEntity(article, firstQe.entity);
+      
+      let result: boolean;
+      switch (firstQe.operator) {
+        case 'any':  // have any of
+        case 'all':  // have all of (treated same as any for single entity)
+          result = firstMatch;
+          break;
+        case 'none': // have none of
+          result = !firstMatch;
+          break;
+        default:
+          result = firstMatch;
+      }
+      
+      // Apply subsequent entities with their operators sequentially
+      for (let i = 1; i < this.query.length; i++) {
+        const qe = this.query[i];
+        const match = this.matchesEntity(article, qe.entity);
+        
+        switch (qe.operator) {
+          case 'any':  // OR
+            result = result || match;
+            break;
+          case 'all':  // AND
+            result = result && match;
+            break;
+          case 'none': // AND NOT
+            result = result && !match;
+            break;
+        }
+      }
+      
+      return result;
     });
-  }
-
-  private matchesGroup(article: Article, queryEntities: QueryEntity[]): boolean {
-    // All entities in this group should have the same operator (we'll use the first one)
-    // In future we can support different operators for different entities
-    const operator = queryEntities[0].operator;
-    
-    const matches = queryEntities.map(qe => this.matchesEntity(article, qe.entity));
-    
-    switch (operator) {
-      case 'any':  // OR - at least one must match
-        return matches.some(m => m);
-      case 'all':  // AND - all must match
-        return matches.every(m => m);
-      case 'none': // NOT - none must match
-        return matches.every(m => !m);
-      default:
-        return matches.some(m => m);
-    }
   }
 
   private matchesEntity(article: Article, entity: Entity): boolean {
@@ -551,20 +565,55 @@ export class QueryBuilderComponent implements OnInit {
     }
   }
 
+  getFirstOperatorLabel(operator: 'any' | 'all' | 'none'): string {
+    switch (operator) {
+      case 'any': return 'have';
+      case 'all': return 'have';
+      case 'none': return 'exclude';
+      default: return 'have';
+    }
+  }
+
+  getSubsequentOperatorLabel(operator: 'any' | 'all' | 'none'): string {
+    switch (operator) {
+      case 'any': return 'or';
+      case 'all': return 'and';
+      case 'none': return 'not';
+      default: return 'or';
+    }
+  }
+
   toggleOperatorDropdown(type: EntityType, event: Event): void {
     event.stopPropagation();
     event.preventDefault();
     this.operatorDropdownOpen = this.operatorDropdownOpen === type ? null : type;
   }
 
+  toggleOperatorDropdownForEntity(uri: string, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.operatorDropdownOpen = this.operatorDropdownOpen === uri ? null : uri;
+  }
+
   isOperatorDropdownOpen(type: EntityType): boolean {
     return this.operatorDropdownOpen === type;
+  }
+
+  isOperatorDropdownOpenForEntity(uri: string): boolean {
+    return this.operatorDropdownOpen === uri;
   }
 
   selectOperator(type: EntityType, operator: 'any' | 'all' | 'none', event: Event): void {
     event.stopPropagation();
     event.preventDefault();
     this.setOperatorForType(type, operator);
+    this.operatorDropdownOpen = null;
+  }
+
+  selectOperatorForEntity(uri: string, operator: 'any' | 'all' | 'none', event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.setOperatorForEntity(uri, operator);
     this.operatorDropdownOpen = null;
   }
 
