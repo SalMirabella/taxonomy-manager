@@ -435,7 +435,7 @@
               </p>
               <div class="grid grid-cols-2 gap-2">
                 <button
-                  *ngFor="let child of getCategoryInstances()"
+                  *ngFor="let child of (selected.type === 'Disease' ? getDiseaseInstances() : getCategoryInstances())"
                   (click)="addToQuery(child)"
                   class="text-left text-sm px-3 py-2 rounded-lg hover:opacity-80 transition flex items-center gap-2"
                   [style.backgroundColor]="isInQuery(child.uri) ? getTypeConfig(child.type)?.color : getTypeConfig(child.type)?.bg"
@@ -447,7 +447,7 @@
               </div>
             </div>
             
-            <p *ngIf="relatedEntities.length === 0" class="text-slate-500">
+            <p *ngIf="(selected.type === 'Disease' ? getDiseaseInstances() : getCategoryInstances()).length === 0" class="text-slate-500">
               No entities in this category
             </p>
           </div>

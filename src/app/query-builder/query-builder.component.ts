@@ -215,10 +215,7 @@ export class QueryBuilderComponent implements OnInit {
         if (this.selected.uri?.startsWith('virtual:All')) {
           // For virtual "All", get everything except the virtual entity itself
           const allItems: Entity[] = (ECMO_DATA as any)[dataKey] || [];
-          console.log('All items in dataKey:', allItems.length);
           categoryEntities = allItems.filter(i => !i.uri?.startsWith('virtual:'));
-          console.log('Category entities after filter:', categoryEntities.length);
-          console.log('Category entities:', categoryEntities.map(e => e.label));
         } else {
           // For regular categories, get all descendants recursively
           categoryEntities = getAllDescendants(this.selected.uri, dataKey);
@@ -244,8 +241,6 @@ export class QueryBuilderComponent implements OnInit {
         const diseases = Array.from(relatedDiseaseUris)
           .map(uri => ECMO_DATA.diseases.find(d => d.uri === uri))
           .filter(Boolean) as Entity[];
-        
-        console.log('Related diseases:', diseases.length);
         
         // Put diseases first, then category entities
         this.relatedEntities = [...diseases, ...categoryEntities];
@@ -479,6 +474,23 @@ export class QueryBuilderComponent implements OnInit {
   // Get non-disease entities from relatedEntities
   getCategoryInstances(): Entity[] {
     return this.relatedEntities.filter(e => e.type !== 'Disease');
+  }
+
+  // Get diseases in a Disease category (for showing in "Diseases in this category" section)
+  getDiseaseInstances(): Entity[] {
+    if (!this.selected || this.selected.type !== 'Disease' || !this.selected.isCategory) {
+      return [];
+    }
+    
+    const dataKey = this.getDataKeyForEntity(this.selected);
+    
+    if (this.selected.uri?.startsWith('virtual:All')) {
+      // For "All Diseases", get all diseases
+      return ECMO_DATA.diseases.filter(d => !d.isCategory);
+    } else {
+      // For specific disease categories, get descendants
+      return getAllDescendants(this.selected.uri, dataKey);
+    }
   }
 
   getRelationLabel(type: string): string {
