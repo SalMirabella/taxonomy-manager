@@ -654,6 +654,25 @@ export class QueryBuilderComponent implements OnInit {
     // Do NOT call updateRelatedEntities() since we're not changing selected
   }
 
+  removeFromQueryWithoutNavigation(uri: string, event: Event): void {
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    
+    // Set flag to prevent any navigation that might be triggered
+    this.preventNavigation = true;
+    
+    // Remove from query WITHOUT changing selected entity (no navigation)
+    this.removeFromQuery(uri);
+    
+    // Reset flag after a short delay to ensure any queued events are processed
+    setTimeout(() => {
+      this.preventNavigation = false;
+    }, 100);
+    
+    // Do NOT change selected entity (this would trigger navigation)
+  }
+
   isVirtualAllEntity(entity: Entity): boolean {
     return entity?.uri?.startsWith('virtual:All') || false;
   }

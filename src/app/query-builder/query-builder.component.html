@@ -205,8 +205,6 @@
                   {{ getTypeLabel(qe.entity.type, 1) }}
                 </span>
               </ng-container>
-              
-              <span class="text-emerald-400 ml-1">→ {{ queryResults.length }} results</span>
             </p>
 
             <!-- Technical -->
@@ -267,10 +265,13 @@
                     class="text-xs text-slate-500 hover:text-white">✕</button>
                 </button>
               </ng-container>
-              
-              <span class="text-emerald-400 ml-2">→ {{ queryResults.length }} results</span>
             </div>
           </div>
+        </div>
+        
+        <!-- Results Count (outside box) -->
+        <div class="flex items-center gap-2">
+          <span class="text-emerald-400 text-sm font-medium">→ {{ queryResults.length }} results</span>
         </div>
       </div>
     </div>
@@ -504,12 +505,16 @@
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
+                    <!-- Toggle Add/Remove button -->
                     <button
-                      *ngIf="!isInQuery(e.uri)"
-                      (click)="addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600 pointer-events-auto z-20"
-                      title="Add to query">
-                      +
+                      (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)"
+                      [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)"
+                      [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
                     </button>
                   </div>
                 </div>
@@ -534,12 +539,16 @@
                       [style.color]="isInQuery(disease.uri) ? 'white' : getTypeConfig(disease.type)?.color">
                       {{ getTypeConfig(disease.type)?.icon }} {{ disease.label }}
                     </button>
+                    <!-- Toggle Add/Remove button -->
                     <button
-                      *ngIf="!isInQuery(disease.uri)"
-                      (click)="addToQueryWithoutNavigation(disease, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600 pointer-events-auto z-20"
-                      title="Add to query">
-                      +
+                      (click)="isInQuery(disease.uri) ? removeFromQueryWithoutNavigation(disease.uri, $event) : addToQueryWithoutNavigation(disease, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(disease.uri)"
+                      [class.hover:bg-indigo-600]="!isInQuery(disease.uri)"
+                      [class.bg-red-500]="isInQuery(disease.uri)"
+                      [class.hover:bg-red-600]="isInQuery(disease.uri)"
+                      [title]="isInQuery(disease.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(disease.uri) ? '✕' : '+' }}
                     </button>
                   </div>
                 </div>
@@ -565,12 +574,16 @@
                     <span *ngIf="!child.isCategory">{{ getTypeConfig(child.type)?.icon }}</span>
                     <span>{{ child.label }}</span>
                   </button>
+                  <!-- Toggle Add/Remove button -->
                   <button
-                    *ngIf="!isInQuery(child.uri)"
-                    (click)="addToQueryWithoutNavigation(child, $event)"
-                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600 pointer-events-auto z-20"
-                    title="Add to query">
-                    +
+                    (click)="isInQuery(child.uri) ? removeFromQueryWithoutNavigation(child.uri, $event) : addToQueryWithoutNavigation(child, $event)"
+                    class="absolute top-1 right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                    [class.bg-indigo-500]="!isInQuery(child.uri)"
+                    [class.hover:bg-indigo-600]="!isInQuery(child.uri)"
+                    [class.bg-red-500]="isInQuery(child.uri)"
+                    [class.hover:bg-red-600]="isInQuery(child.uri)"
+                    [title]="isInQuery(child.uri) ? 'Remove from query' : 'Add to query'">
+                    {{ isInQuery(child.uri) ? '✕' : '+' }}
                   </button>
                 </div>
               </div>
@@ -611,12 +624,16 @@
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
+                    <!-- Toggle Add/Remove button -->
                     <button
-                      *ngIf="!isInQuery(e.uri)"
-                      (click)="addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600 pointer-events-auto z-20"
-                      title="Add to query">
-                      +
+                      (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)"
+                      [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)"
+                      [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
                     </button>
                   </div>
                 </div>
@@ -647,12 +664,16 @@
                   [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                   {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                 </button>
+                <!-- Toggle Add/Remove button -->
                 <button
-                  *ngIf="!isInQuery(e.uri)"
-                  (click)="addToQueryWithoutNavigation(e, $event)"
-                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 bg-indigo-500 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center hover:bg-indigo-600 pointer-events-auto z-20"
-                  title="Add to query">
-                  +
+                  (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                  [class.bg-indigo-500]="!isInQuery(e.uri)"
+                  [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                  [class.bg-red-500]="isInQuery(e.uri)"
+                  [class.hover:bg-red-600]="isInQuery(e.uri)"
+                  [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                  {{ isInQuery(e.uri) ? '✕' : '+' }}
                 </button>
               </div>
             </div>
