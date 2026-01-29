@@ -79,7 +79,7 @@ deployment:
       haproxy.router.openshift.io/timeout: 300s
     tls:
       termination: edge
-      insecureEdgeTerminationPolicy: Redirect
+      insecureEdgeTerminationPolicy: Allow
 
   ## Autoscaler (disabled for now, enable in production if needed)
   # autoScaler:
