@@ -1207,44 +1207,35 @@ export class EcmoDataLoaderService {
       // Try to determine EntityType using hierarchy-based inference
       let entityType = this.inferEntityTypeFromHierarchy(rootUri, classMap);
 
-      if (entityType) {
-        console.log(`  → Processing root class: ${classInfo.label} → ${entityType}`);
-
-        // Build flat hierarchy for this root class
-        const entities = this.buildFlatHierarchy(
-          rootUri,
-          classMap,
-          hierarchyTree,
-          instancesByClass,
-          entityType
-        );
-
-        // Add to the appropriate array based on entity type
-        const key = this.getDataKeyForEntityType(entityType);
-        if (key && result[key]) {
-          (result[key] as Entity[]).push(...entities);
-        }
-
-        // Also add root class to owlClasses array
-        const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
-        if (rootClassEntity) {
-          result.owlClasses!.push(rootClassEntity);
-        }
+      // If no mapping found, use Hazard as fallback but STILL process the full hierarchy
+      if (!entityType) {
+        console.log(`  ⚠️  No mapping found for root class: ${classInfo.label} - using Hazard as fallback`);
+        entityType = 'Hazard';
       } else {
-        // No EntityType mapping found - add to owlClasses only
-        console.log(`  ⚠️  No mapping found for root class: ${classInfo.label} - adding to OWL classes only`);
+        console.log(`  → Processing root class: ${classInfo.label} → ${entityType}`);
+      }
 
-        const unmappedClass: Entity = {
-          uri: this.convertToShortUri(rootUri),
-          label: classInfo.label,
-          type: 'Hazard', // Use Hazard as fallback type for unmapped classes
-          isOwlClass: true,
-          isCategory: true,
-          description: classInfo.description,
-          subClassOf: classInfo.subClassOf.length > 0 ? classInfo.subClassOf : undefined
-        };
+      // ALWAYS build the complete hierarchy: root class + all subclasses + all instances
+      const entities = this.buildFlatHierarchy(
+        rootUri,
+        classMap,
+        hierarchyTree,
+        instancesByClass,
+        entityType
+      );
 
-        result.owlClasses!.push(unmappedClass);
+      console.log(`    ✓ Built hierarchy with ${entities.length} entities (classes + instances)`);
+
+      // Add to the appropriate array based on entity type
+      const key = this.getDataKeyForEntityType(entityType);
+      if (key && result[key]) {
+        (result[key] as Entity[]).push(...entities);
+      }
+
+      // Also add root class to owlClasses array
+      const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
+      if (rootClassEntity) {
+        result.owlClasses!.push(rootClassEntity);
       }
     });
 
