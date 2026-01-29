@@ -47,6 +47,9 @@ COPY --from=build /app/dist/ecmo-query-builder/browser /usr/share/nginx/html
 # Copy nginx configuration (listens on port 8080)
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Remove default nginx config to avoid conflicts
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 # =============================================================================
 # Permissions for OpenShift
 # =============================================================================
