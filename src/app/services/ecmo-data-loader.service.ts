@@ -28,6 +28,14 @@ interface ParsedData {
   relations: Record<string, Record<string, string[]>>;
 }
 
+interface OwlClassInfo {
+  uri: string;
+  label: string;
+  description?: string;
+  subClassOf: string[];
+  types: string[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -65,128 +73,50 @@ export class EcmoDataLoaderService {
    * Parse expanded JSON-LD data into our application format
    */
   private parseExpandedData(expanded: any[]): ParsedData {
-    const diseases: Entity[] = [];
-    const symptoms: Entity[] = [];
-    const pathogens: Entity[] = [];
-    const vectors: Entity[] = [];
-    const hosts: Entity[] = [];
-    const hazards: Entity[] = [];
-    const routesOfTransmission: Entity[] = [];
-    const phsmTypes: Entity[] = [];
-    const animalTypes: Entity[] = [];
-    const taxonomicRanks: Entity[] = [];
-    const severityLevels: Entity[] = [];
-    const plantTypes: Entity[] = [];
-    const species: Entity[] = [];
-    const toxinTypes: Entity[] = [];
-    const pestTypes: Entity[] = [];
-    const owlClasses: Entity[] = [];
+    console.log('\n🚀 AUTOMATIC OWL HIERARCHY CONSTRUCTION MODE');
+    console.log('━'.repeat(80));
+
+    // Use automatic hierarchy construction
+    const autoData = this.autoConstructHierarchy(expanded);
+
+    const diseases: Entity[] = autoData.diseases || [];
+    const symptoms: Entity[] = autoData.symptoms || [];
+    const pathogens: Entity[] = autoData.pathogens || [];
+    const vectors: Entity[] = autoData.vectors || [];
+    const hosts: Entity[] = autoData.hosts || [];
+    const hazards: Entity[] = autoData.hazards || [];
+    const routesOfTransmission: Entity[] = autoData.routesOfTransmission || [];
+    const phsmTypes: Entity[] = autoData.phsmTypes || [];
+    const animalTypes: Entity[] = autoData.animalTypes || [];
+    const taxonomicRanks: Entity[] = autoData.taxonomicRanks || [];
+    const severityLevels: Entity[] = autoData.severityLevels || [];
+    const plantTypes: Entity[] = autoData.plantTypes || [];
+    const species: Entity[] = autoData.species || [];
+    const toxinTypes: Entity[] = autoData.toxinTypes || [];
+    const pestTypes: Entity[] = autoData.pestTypes || [];
+    const owlClasses: Entity[] = autoData.owlClasses || [];
     const relations: Record<string, Record<string, string[]>> = {};
 
+    // Extract relations for disease entities
+    console.log('\n📊 Extracting relations for disease entities...');
     for (const node of expanded) {
       const id = node['@id'];
       if (!id) continue;
 
       const types = node['@type'] || [];
 
-      // Extract label
-      const label = this.extractLabel(node);
-      if (!label) continue; // Skip nodes without labels
-
-      // Check what type of entity this is and add to appropriate arrays
-      // IMPORTANT: An entity can belong to multiple categories if it has multiple types
-      // (e.g., "Unknown Disease" has both Disease and Hazard types)
-
-      if (this.isSymptom(types)) {
-        const entity = this.createEntity(id, label, 'Symptom', node);
-        symptoms.push(entity);
-      }
-
-      if (this.isPathogen(types)) {
-        const entity = this.createEntity(id, label, 'Pathogen', node);
-        pathogens.push(entity);
-      }
-
-      if (this.isVector(types)) {
-        const entity = this.createEntity(id, label, 'Vector', node);
-        vectors.push(entity);
-      }
-
-      if (this.isHost(types)) {
-        const entity = this.createEntity(id, label, 'Host', node);
-        hosts.push(entity);
-      }
-
+      // Extract relations only for disease instances
       if (this.isDisease(types)) {
-        const entity = this.createEntity(id, label, 'Disease', node);
-        diseases.push(entity);
-        relations[id] = this.extractRelations(node);
-      }
-
-      if (this.isHazard(types)) {
-        const entity = this.createEntity(id, label, 'Hazard', node);
-        hazards.push(entity);
-      }
-
-      if (this.isRouteOfTransmission(types)) {
-        const entity = this.createEntity(id, label, 'RouteOfTransmission', node);
-        routesOfTransmission.push(entity);
-      }
-
-      if (this.isPHSMType(types)) {
-        const entity = this.createEntity(id, label, 'PHSMType', node);
-        phsmTypes.push(entity);
-      }
-
-      if (this.isAnimalType(types)) {
-        const entity = this.createEntity(id, label, 'AnimalType', node);
-        animalTypes.push(entity);
-      }
-
-      if (this.isTaxonomicRank(types)) {
-        const entity = this.createEntity(id, label, 'TaxonomicRank', node);
-        taxonomicRanks.push(entity);
-      }
-
-      if (this.isSeverityLevel(types)) {
-        const entity = this.createEntity(id, label, 'SeverityLevel', node);
-        severityLevels.push(entity);
-      }
-
-      if (this.isPlantType(types)) {
-        const entity = this.createEntity(id, label, 'PlantType', node);
-        plantTypes.push(entity);
-      }
-
-      if (this.isSpecies(types)) {
-        const entity = this.createEntity(id, label, 'Species', node);
-        species.push(entity);
-      }
-
-      if (this.isToxinType(types)) {
-        const entity = this.createEntity(id, label, 'ToxinType', node);
-        toxinTypes.push(entity);
-      }
-
-      if (this.isPestType(types)) {
-        const entity = this.createEntity(id, label, 'PestType', node);
-        pestTypes.push(entity);
-      }
-
-      // Extract OWL Class definitions
-      if (this.isOwlClass(types)) {
-        const owlClassEntity = this.createOwlClassEntity(id, label, node);
-        if (owlClassEntity) {
-          owlClasses.push(owlClassEntity);
-          console.log(`    ✓ Extracted OWL Class: ${owlClassEntity.label} (${owlClassEntity.type})`);
+        const diseaseUri = this.convertToShortUri(id);
+        const diseaseRelations = this.extractRelations(node);
+        if (Object.keys(diseaseRelations).length > 0) {
+          relations[diseaseUri] = diseaseRelations;
         }
       }
     }
 
-    console.log(`  → Extracted ${owlClasses.length} OWL class definitions`);
-    if (owlClasses.length > 0) {
-      console.log(`    Classes: ${owlClasses.map(c => c.label).join(', ')}`);
-    }
+    console.log(`  → Extracted relations for ${Object.keys(relations).length} diseases`);
+    console.log('━'.repeat(80));
 
     // Second pass: mark entities that are referenced as parents
     this.markParentEntitiesAsCategories(diseases);
@@ -1004,6 +934,330 @@ export class EcmoDataLoaderService {
 
   private isOwlClass(types: string[]): boolean {
     return types.includes('http://www.w3.org/2002/07/owl#Class');
+  }
+
+  /**
+   * AUTOMATIC OWL HIERARCHY CONSTRUCTION
+   * This section implements automatic hierarchy construction that reflects the exact file structure
+   */
+
+  /**
+   * Extract ALL OWL classes from the expanded JSON-LD data
+   * No manual filtering - extract everything marked as owl:Class
+   */
+  private extractAllOwlClasses(expanded: any[]): Map<string, OwlClassInfo> {
+    const classMap = new Map<string, OwlClassInfo>();
+
+    for (const node of expanded) {
+      const id = node['@id'];
+      if (!id) continue;
+
+      const types = node['@type'] || [];
+
+      // Check if it's an OWL Class
+      if (!this.isOwlClass(types)) continue;
+
+      // Extract label
+      const label = this.extractLabel(node);
+      if (!label) continue; // Skip classes without labels
+
+      // Extract description
+      const description = this.extractDescription(node);
+
+      // Extract subClassOf relationships
+      const subClassOf: string[] = [];
+      const subClassOfProp = node['http://www.w3.org/2000/01/rdf-schema#subClassOf'];
+      if (subClassOfProp && Array.isArray(subClassOfProp)) {
+        subClassOfProp.forEach((parent: any) => {
+          if (parent['@id']) {
+            subClassOf.push(parent['@id']);
+          }
+        });
+      }
+
+      classMap.set(id, {
+        uri: id,
+        label,
+        description,
+        subClassOf,
+        types
+      });
+    }
+
+    console.log(`  → Extracted ${classMap.size} OWL classes from file`);
+    return classMap;
+  }
+
+  /**
+   * Build class hierarchy tree (parent -> children mapping)
+   */
+  private buildClassHierarchyTree(classMap: Map<string, OwlClassInfo>): Map<string, string[]> {
+    const hierarchyTree = new Map<string, string[]>();
+
+    // For each class, register it as a child of its parents
+    classMap.forEach((classInfo, classUri) => {
+      classInfo.subClassOf.forEach(parentUri => {
+        // Only register if parent is also in our class map (i.e., it's a relevant class)
+        if (classMap.has(parentUri)) {
+          if (!hierarchyTree.has(parentUri)) {
+            hierarchyTree.set(parentUri, []);
+          }
+          hierarchyTree.get(parentUri)!.push(classUri);
+        }
+      });
+    });
+
+    return hierarchyTree;
+  }
+
+  /**
+   * Identify ALL root classes automatically
+   * Root classes are those without parents OR with only generic/irrelevant parents
+   * This must reflect the exact file structure - NO manual decisions
+   */
+  private identifyRootClasses(classMap: Map<string, OwlClassInfo>): string[] {
+    const genericParents = [
+      'http://www.w3.org/2002/07/owl#Thing',
+      'http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#SocialObject',
+      'http://www.ontologydesignpatterns.org/ont/dul/DUL.owl#Object',
+      'http://www.w3.org/2000/01/rdf-schema#Resource'
+    ];
+
+    const rootClasses: string[] = [];
+
+    classMap.forEach((classInfo, classUri) => {
+      // Check if this class has any relevant parents
+      const relevantParents = classInfo.subClassOf.filter(parentUri => {
+        // Exclude generic OWL/RDFS parents
+        if (genericParents.includes(parentUri)) {
+          return false;
+        }
+        // Include only if parent exists in our class map
+        return classMap.has(parentUri);
+      });
+
+      // If no relevant parents, it's a root class
+      if (relevantParents.length === 0) {
+        rootClasses.push(classUri);
+      }
+    });
+
+    console.log(`  → Identified ${rootClasses.length} root classes:`);
+    rootClasses.forEach(uri => {
+      const classInfo = classMap.get(uri)!;
+      console.log(`    • ${classInfo.label} (${uri})`);
+    });
+
+    return rootClasses;
+  }
+
+  /**
+   * Build flat hierarchy for a class tree (recursively)
+   * Outputs flat arrays with parent references (compatible with existing UI)
+   * Structure: Base Class → Instances → Subclass → Instances → Sub-subclass → Instances (recursive)
+   */
+  private buildFlatHierarchy(
+    classUri: string,
+    classMap: Map<string, OwlClassInfo>,
+    hierarchyTree: Map<string, string[]>,
+    allInstances: Map<string, Entity[]>,
+    entityType: EntityType,
+    parentUri?: string
+  ): Entity[] {
+    const results: Entity[] = [];
+    const classInfo = classMap.get(classUri)!;
+
+    // Create the OWL Class entity
+    const classEntity: Entity = {
+      uri: this.convertToShortUri(classUri),
+      label: classInfo.label,
+      type: entityType,
+      isOwlClass: true,
+      isCategory: true,
+      description: classInfo.description,
+      subClassOf: classInfo.subClassOf.length > 0 ? classInfo.subClassOf : undefined,
+      parent: parentUri ? this.convertToShortUri(parentUri) : undefined
+    };
+
+    results.push(classEntity);
+
+    // Get direct instances of this class - set their parent to this class
+    const instances = allInstances.get(classUri) || [];
+    instances.forEach(instance => {
+      instance.type = entityType; // Set correct entity type
+      instance.parent = this.convertToShortUri(classUri); // Set parent to this OWL class
+      results.push(instance);
+    });
+
+    // Get direct subclasses and recursively process them
+    const subclasses = hierarchyTree.get(classUri) || [];
+    subclasses.forEach(subclassUri => {
+      const subclassEntities = this.buildFlatHierarchy(
+        subclassUri,
+        classMap,
+        hierarchyTree,
+        allInstances,
+        entityType,
+        classUri // Pass current class as parent
+      );
+      results.push(...subclassEntities);
+    });
+
+    return results;
+  }
+
+  /**
+   * Get all instances (NamedIndividuals) for each class
+   * Returns a map of classUri -> instances[]
+   */
+  private getAllInstancesByClass(expanded: any[]): Map<string, Entity[]> {
+    const instancesByClass = new Map<string, Entity[]>();
+
+    for (const node of expanded) {
+      const id = node['@id'];
+      if (!id) continue;
+
+      const types = node['@type'] || [];
+
+      // Skip OWL Classes themselves
+      if (this.isOwlClass(types)) continue;
+
+      // Extract label
+      const label = this.extractLabel(node);
+      if (!label) continue;
+
+      // This is an instance - find its type classes
+      types.forEach((typeUri: string) => {
+        // Only consider types in our namespaces
+        if (!typeUri.startsWith(this.PH_PREFIX) &&
+            !typeUri.startsWith(this.CORE_PREFIX) &&
+            !typeUri.startsWith(this.BIO_PREFIX)) {
+          return;
+        }
+
+        // Extract parent if any
+        const parent = this.extractParent(node);
+        const description = this.extractDescription(node);
+        const properties = this.extractProperties(node, 'Disease'); // Will be updated later with correct type
+
+        // Create instance entity
+        const instance: Entity = {
+          uri: this.convertToShortUri(id),
+          label,
+          type: 'Disease', // Will be set properly later
+          isCategory: false,
+          parent: parent ? this.convertToShortUri(parent) : undefined,
+          description,
+          properties
+        };
+
+        // Add to the map
+        if (!instancesByClass.has(typeUri)) {
+          instancesByClass.set(typeUri, []);
+        }
+        instancesByClass.get(typeUri)!.push(instance);
+      });
+    }
+
+    return instancesByClass;
+  }
+
+  /**
+   * Automatically construct hierarchy from OWL classes
+   * This is the main orchestrator that uses all the helper methods
+   */
+  private autoConstructHierarchy(expanded: any[]): Partial<ParsedData> {
+    console.log('🤖 Starting automatic OWL hierarchy construction...');
+
+    // Step 1: Extract ALL OWL classes
+    const classMap = this.extractAllOwlClasses(expanded);
+
+    // Step 2: Build hierarchy tree (parent -> children relationships)
+    const hierarchyTree = this.buildClassHierarchyTree(classMap);
+
+    // Step 3: Identify root classes automatically
+    const rootClasses = this.identifyRootClasses(classMap);
+
+    // Step 4: Get all instances by class
+    const instancesByClass = this.getAllInstancesByClass(expanded);
+
+    // Step 5: For each root class, determine EntityType and build flat hierarchy
+    const result: Partial<ParsedData> = {
+      diseases: [],
+      symptoms: [],
+      pathogens: [],
+      vectors: [],
+      hosts: [],
+      hazards: [],
+      routesOfTransmission: [],
+      phsmTypes: [],
+      animalTypes: [],
+      taxonomicRanks: [],
+      severityLevels: [],
+      plantTypes: [],
+      species: [],
+      toxinTypes: [],
+      pestTypes: [],
+      owlClasses: []
+    };
+
+    rootClasses.forEach(rootUri => {
+      const entityType = this.getEntityTypeForOwlClass(rootUri);
+
+      if (entityType) {
+        console.log(`  → Processing root class: ${classMap.get(rootUri)!.label} → ${entityType}`);
+
+        // Build flat hierarchy for this root class
+        const entities = this.buildFlatHierarchy(
+          rootUri,
+          classMap,
+          hierarchyTree,
+          instancesByClass,
+          entityType
+        );
+
+        // Add to the appropriate array based on entity type
+        const key = this.getDataKeyForEntityType(entityType);
+        if (key && result[key]) {
+          (result[key] as Entity[]).push(...entities);
+        }
+
+        // Also add root class to owlClasses array
+        const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
+        if (rootClassEntity) {
+          result.owlClasses!.push(rootClassEntity);
+        }
+      } else {
+        console.log(`  ⚠️  Skipping unmapped root class: ${classMap.get(rootUri)!.label}`);
+      }
+    });
+
+    console.log('✅ Automatic hierarchy construction complete');
+    return result;
+  }
+
+  /**
+   * Map EntityType to ParsedData key
+   */
+  private getDataKeyForEntityType(entityType: EntityType): keyof ParsedData | null {
+    const mapping: Record<EntityType, keyof ParsedData> = {
+      'Disease': 'diseases',
+      'Symptom': 'symptoms',
+      'Pathogen': 'pathogens',
+      'Vector': 'vectors',
+      'Host': 'hosts',
+      'Hazard': 'hazards',
+      'RouteOfTransmission': 'routesOfTransmission',
+      'PHSMType': 'phsmTypes',
+      'AnimalType': 'animalTypes',
+      'TaxonomicRank': 'taxonomicRanks',
+      'SeverityLevel': 'severityLevels',
+      'PlantType': 'plantTypes',
+      'Species': 'species',
+      'ToxinType': 'toxinTypes',
+      'PestType': 'pestTypes'
+    };
+    return mapping[entityType] || null;
   }
 
   /**
