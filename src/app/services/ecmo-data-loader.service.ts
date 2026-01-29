@@ -1048,7 +1048,7 @@ export class EcmoDataLoaderService {
     if (uri === `${this.PH_PREFIX}Disease` || uri === `${this.PH_PREFIX}InfectiousDisease`) {
       return 'Disease';
     }
-    if (uri === `${this.PH_PREFIX}SignOrSymptom`) {
+    if (uri === `${this.PH_PREFIX}SignOrSymptom` || uri === `${this.PH_PREFIX}SignOrSyptom`) {
       return 'Symptom';
     }
     if (uri === `${this.CORE_PREFIX}PathogenType` ||

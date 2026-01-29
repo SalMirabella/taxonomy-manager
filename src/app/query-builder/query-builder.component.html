@@ -103,8 +103,11 @@
               <span class="flex items-center gap-2">
                 <span [style.color]="getTypeConfig(item.type)?.color">{{ getTypeConfig(item.type)?.icon }}</span>
                 {{ item.label }}
+                <span *ngIf="item.isOwlClass" class="text-xs px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-300 border border-purple-500/30">
+                  OWL
+                </span>
               </span>
-              <span 
+              <span
                 class="text-xs px-2 py-0.5 rounded"
                 [style.backgroundColor]="getTypeConfig(item.type)?.bg"
                 [style.color]="getTypeConfig(item.type)?.color">
@@ -200,8 +203,8 @@
                     class="text-xs opacity-70 hover:opacity-100">✕</button>
                 </button>
                 
-                <!-- Type Label (at the end) -->
-                <span *ngIf="idx === query.length - 1 && !isVirtualAllEntity(qe.entity)" class="text-slate-400">
+                <!-- Type Label (at the end) - only for single instances, not categories or OWL classes -->
+                <span *ngIf="idx === query.length - 1 && !isVirtualAllEntity(qe.entity) && !qe.entity.isCategory && !qe.entity.isOwlClass" class="text-slate-400">
                   {{ getTypeLabel(qe.entity.type, 1) }}
                 </span>
               </ng-container>
@@ -421,7 +424,24 @@
         *ngIf="selected"
         class="bg-slate-800/50 rounded-xl border overflow-hidden"
         [style.borderColor]="getSelectedConfig()?.color + '50'">
-        
+
+        <!-- Breadcrumb -->
+        <div class="px-4 pt-3 pb-2 bg-slate-900/30 border-b border-slate-700/30">
+          <div class="flex items-center gap-1 text-xs text-slate-400 flex-wrap">
+            <ng-container *ngFor="let item of getBreadcrumb(); let i = index; let last = last">
+              <button
+                *ngIf="!last"
+                (click)="selectEntity(item)"
+                class="hover:text-white transition hover:underline"
+                [style.color]="getTypeConfig(item.type)?.color">
+                {{ item.label }}
+              </button>
+              <span *ngIf="!last" class="text-slate-600">/</span>
+              <span *ngIf="last" class="text-white font-medium">{{ item.label }}</span>
+            </ng-container>
+          </div>
+        </div>
+
         <!-- Header (clickable to toggle) -->
         <button
           (click)="detailOpen = !detailOpen"
@@ -470,6 +490,24 @@
           </div>
         </button>
 
+        <!-- Navigation buttons -->
+        <div *ngIf="detailOpen" class="px-4 py-2 bg-slate-800/30 border-t border-slate-700/30 flex justify-between items-center">
+          <button
+            (click)="goBack()"
+            [disabled]="!canGoBack()"
+            class="px-3 py-1.5 rounded bg-slate-700/50 hover:bg-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition text-sm"
+            title="Go back">
+            ← Back
+          </button>
+          <button
+            (click)="goForward()"
+            [disabled]="!canGoForward()"
+            class="px-3 py-1.5 rounded bg-slate-700/50 hover:bg-slate-600 disabled:opacity-20 disabled:cursor-not-allowed transition text-sm"
+            title="Go forward">
+            Forward →
+          </button>
+        </div>
+
         <!-- Content -->
         <div *ngIf="detailOpen" class="p-4 border-t border-slate-700/50">
           
@@ -509,19 +547,20 @@
                 <div class="flex flex-wrap gap-1 ml-2 mb-3">
                   <div
                     *ngFor="let e of group.entities"
-                    class="relative group/entity pointer-events-none">
+                    class="flex items-stretch rounded-lg overflow-hidden"
+                    [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <!-- Entity info (clickable) -->
                     <button
                       (click)="selectEntity(e)"
-                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
-                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      [style.color]="getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
-                    <!-- Toggle Add/Remove button -->
+                    <!-- Toggle Add/Remove button (always visible) -->
                     <button
                       (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)"
                       [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)"
@@ -543,19 +582,19 @@
                 <div class="flex flex-wrap gap-1 ml-2 mb-3">
                   <div
                     *ngFor="let disease of getRelatedDiseases()"
-                    class="relative group/entity pointer-events-none">
+                    class="flex items-stretch rounded-lg overflow-hidden"
+                    [style.backgroundColor]="getTypeConfig(disease.type)?.bg">
                     <button
                       (click)="selectEntity(disease)"
-                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === disease.uri}"
-                      [style.backgroundColor]="isInQuery(disease.uri) ? getTypeConfig(disease.type)?.color : getTypeConfig(disease.type)?.bg"
-                      [style.color]="isInQuery(disease.uri) ? 'white' : getTypeConfig(disease.type)?.color">
+                      [style.color]="getTypeConfig(disease.type)?.color">
                       {{ getTypeConfig(disease.type)?.icon }} {{ disease.label }}
                     </button>
                     <!-- Toggle Add/Remove button -->
                     <button
                       (click)="isInQuery(disease.uri) ? removeFromQueryWithoutNavigation(disease.uri, $event) : addToQueryWithoutNavigation(disease, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(disease.uri)"
                       [class.hover:bg-indigo-600]="!isInQuery(disease.uri)"
                       [class.bg-red-500]="isInQuery(disease.uri)"
@@ -576,21 +615,22 @@
               <div class="grid grid-cols-2 gap-2">
                 <div
                   *ngFor="let child of (selected.type === 'Disease' ? getDiseaseInstances() : getCategoryInstances())"
-                  class="relative group/entity pointer-events-none">
+                  class="flex items-stretch rounded-lg overflow-hidden"
+                  [style.backgroundColor]="getTypeConfig(child.type)?.bg">
+                  <!-- Entity info (clickable) -->
                   <button
                     (click)="selectEntity(child)"
-                    class="w-full text-left text-sm px-3 py-2 rounded-lg hover:opacity-80 transition flex items-center gap-2 pointer-events-auto"
+                    class="flex-1 text-left text-sm px-3 py-2 hover:opacity-80 transition flex items-center gap-2"
                     [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === child.uri}"
-                    [style.backgroundColor]="isInQuery(child.uri) ? getTypeConfig(child.type)?.color : getTypeConfig(child.type)?.bg"
-                    [style.color]="isInQuery(child.uri) ? 'white' : getTypeConfig(child.type)?.color">
+                    [style.color]="getTypeConfig(child.type)?.color">
                     <span *ngIf="child.isCategory">📂</span>
                     <span *ngIf="!child.isCategory">{{ getTypeConfig(child.type)?.icon }}</span>
-                    <span>{{ child.label }}</span>
+                    <span class="truncate">{{ child.label }}</span>
                   </button>
-                  <!-- Toggle Add/Remove button -->
+                  <!-- Toggle Add/Remove button (always visible) -->
                   <button
                     (click)="isInQuery(child.uri) ? removeFromQueryWithoutNavigation(child.uri, $event) : addToQueryWithoutNavigation(child, $event)"
-                    class="absolute top-1 right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                    class="w-8 flex items-center justify-center text-white text-sm font-bold transition border-l border-slate-700/30"
                     [class.bg-indigo-500]="!isInQuery(child.uri)"
                     [class.hover:bg-indigo-600]="!isInQuery(child.uri)"
                     [class.bg-red-500]="isInQuery(child.uri)"
@@ -647,16 +687,61 @@
               </div>
             </div>
 
-            <!-- Instances Count -->
+            <!-- Model Fields -->
+            <div *ngIf="getModelFieldsForType(selected.type).length > 0" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-2">Model Fields</p>
+              <p class="text-xs text-slate-500 mb-3">Properties defined for this class:</p>
+              <div class="space-y-2">
+                <div *ngFor="let field of getModelFieldsForType(selected.type)" class="text-sm">
+                  <div class="flex items-start gap-2">
+                    <span class="text-indigo-400 shrink-0">•</span>
+                    <div class="flex-1">
+                      <span class="text-slate-300 font-medium">{{ field.name }}</span>
+                      <code class="text-xs text-slate-500 ml-2">({{ field.property }})</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Instances -->
             <div class="bg-slate-700/30 rounded-lg p-3">
-              <p class="text-xs font-semibold text-slate-400 mb-2">Instances</p>
-              <p class="text-sm text-slate-300">
-                This class has <strong class="text-white">{{ getInstanceCountForType(selected.type) }}</strong> instances in the ontology.
+              <p class="text-xs font-semibold text-slate-400 mb-3">
+                Instances ({{ getInstanceCountForType(selected.type) }})
               </p>
-              <button (click)="navigateToRootCategory(selected.type)"
-                class="mt-2 text-sm px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition">
-                View all instances →
-              </button>
+
+              <div class="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                <div
+                  *ngFor="let instance of getInstancesForType(selected.type)"
+                  class="flex items-stretch rounded-lg overflow-hidden"
+                  [style.backgroundColor]="getTypeConfig(instance.type)?.bg">
+                  <!-- Entity info (clickable) -->
+                  <button
+                    (click)="selectEntity(instance)"
+                    class="flex-1 text-left text-sm px-3 py-2 hover:opacity-80 transition flex items-center gap-2"
+                    [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === instance.uri}"
+                    [style.color]="getTypeConfig(instance.type)?.color">
+                    <span *ngIf="instance.isCategory">📂</span>
+                    <span *ngIf="!instance.isCategory">{{ getTypeConfig(instance.type)?.icon }}</span>
+                    <span class="truncate">{{ instance.label }}</span>
+                  </button>
+                  <!-- Toggle Add/Remove button (always visible) -->
+                  <button
+                    (click)="isInQuery(instance.uri) ? removeFromQueryWithoutNavigation(instance.uri, $event) : addToQueryWithoutNavigation(instance, $event)"
+                    class="w-8 flex items-center justify-center text-white text-sm font-bold transition border-l border-slate-700/30"
+                    [class.bg-indigo-500]="!isInQuery(instance.uri)"
+                    [class.hover:bg-indigo-600]="!isInQuery(instance.uri)"
+                    [class.bg-red-500]="isInQuery(instance.uri)"
+                    [class.hover:bg-red-600]="isInQuery(instance.uri)"
+                    [title]="isInQuery(instance.uri) ? 'Remove from query' : 'Add to query'">
+                    {{ isInQuery(instance.uri) ? '✕' : '+' }}
+                  </button>
+                </div>
+              </div>
+
+              <p *ngIf="getInstancesForType(selected.type).length === 0" class="text-sm text-slate-500">
+                No instances found for this class.
+              </p>
             </div>
 
             <!-- URI -->
@@ -709,15 +794,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -791,15 +876,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -865,15 +950,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -947,15 +1032,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -997,15 +1082,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1047,15 +1132,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1086,15 +1171,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1125,15 +1210,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1191,15 +1276,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1230,15 +1315,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1269,15 +1354,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1335,15 +1420,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1401,15 +1486,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1440,15 +1525,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1479,15 +1564,15 @@
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
                     <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                       [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                       [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1507,16 +1592,16 @@
           <ng-template #entityList let-uris>
             <div class="flex flex-wrap gap-1 mt-1">
               <ng-container *ngFor="let uri of getUriValuesFromProperty(uris)">
-                <div *ngIf="findEntityByUri(uri) as e" class="relative group/entity pointer-events-none">
+                <div *ngIf="findEntityByUri(uri) as e" class="flex items-stretch rounded-lg overflow-hidden"
+                  [style.backgroundColor]="getTypeConfig(e.type)?.bg">
                   <button (click)="selectEntity(e)"
-                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                    class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                     [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
-                    [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                    [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                    [style.color]="getTypeConfig(e.type)?.color">
                     {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                   </button>
                   <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                    class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                     [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                     [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                     [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
@@ -1543,15 +1628,15 @@
                 <div *ngFor="let group of getInverseRelationships()" class="mb-3">
                   <p class="text-sm text-slate-400 mb-1">{{ formatPropertyName(group.propertyName) }} ({{ group.entities.length }}):</p>
                   <div class="flex flex-wrap gap-1 ml-2">
-                    <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
-                      <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                    <div *ngFor="let e of group.entities" class="flex items-stretch rounded-lg overflow-hidden" [style.backgroundColor]="getTypeConfig(e.type)?.bg">
+                      <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 hover:opacity-80 transition flex items-center gap-1"
                         [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                         [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                         [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                         {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                       </button>
                       <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                        class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                        class="px-2 flex items-center justify-center text-white text-xs font-bold transition border-l border-slate-700/30"
                         [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
                         [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                         [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">

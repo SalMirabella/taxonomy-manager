@@ -63,9 +63,6 @@ export class EcmoDataService {
       console.log('Loading ECMO data from JSON-LD...');
       const data = await this.dataLoader.loadEcmoData('/assets/statements.jsonld');
 
-      // Add virtual "All" entities to each category
-      this.addVirtualAllEntities(data);
-
       this._ecmoData = data;
       this._isRealDataLoaded = true;
 
@@ -106,116 +103,6 @@ export class EcmoDataService {
       console.error('Failed to load ECMO data from JSON-LD, using mockup data:', error);
       // Keep using mockup data (already initialized)
     }
-  }
-
-  /**
-   * Add virtual "All [Type]" entities to each category
-   */
-  private addVirtualAllEntities(data: any): void {
-    data.diseases.unshift({
-      uri: 'virtual:AllDiseases',
-      label: 'All Diseases',
-      type: 'Disease' as EntityType,
-      isCategory: true
-    });
-
-    data.symptoms.unshift({
-      uri: 'virtual:AllSymptoms',
-      label: 'All Symptoms',
-      type: 'Symptom' as EntityType,
-      isCategory: true
-    });
-
-    data.pathogens.unshift({
-      uri: 'virtual:AllPathogens',
-      label: 'All Pathogens',
-      type: 'Pathogen' as EntityType,
-      isCategory: true
-    });
-
-    data.vectors.unshift({
-      uri: 'virtual:AllVectors',
-      label: 'All Vectors',
-      type: 'Vector' as EntityType,
-      isCategory: true
-    });
-
-    data.hosts.unshift({
-      uri: 'virtual:AllHosts',
-      label: 'All Hosts',
-      type: 'Host' as EntityType,
-      isCategory: true
-    });
-
-    data.hazards.unshift({
-      uri: 'virtual:AllHazards',
-      label: 'All Hazards',
-      type: 'Hazard' as EntityType,
-      isCategory: true
-    });
-
-    data.routesOfTransmission.unshift({
-      uri: 'virtual:AllRoutesOfTransmission',
-      label: 'All Routes of Transmission',
-      type: 'RouteOfTransmission' as EntityType,
-      isCategory: true
-    });
-
-    data.phsmTypes.unshift({
-      uri: 'virtual:AllPHSMTypes',
-      label: 'All PHSM Types',
-      type: 'PHSMType' as EntityType,
-      isCategory: true
-    });
-
-    data.animalTypes.unshift({
-      uri: 'virtual:AllAnimalTypes',
-      label: 'All Animal Types',
-      type: 'AnimalType' as EntityType,
-      isCategory: true
-    });
-
-    data.taxonomicRanks.unshift({
-      uri: 'virtual:AllTaxonomicRanks',
-      label: 'All Taxonomic Ranks',
-      type: 'TaxonomicRank' as EntityType,
-      isCategory: true
-    });
-
-    data.severityLevels.unshift({
-      uri: 'virtual:AllSeverityLevels',
-      label: 'All Severity Levels',
-      type: 'SeverityLevel' as EntityType,
-      isCategory: true
-    });
-
-    data.plantTypes.unshift({
-      uri: 'virtual:AllPlantTypes',
-      label: 'All Plant Types',
-      type: 'PlantType' as EntityType,
-      isCategory: true
-    });
-
-    data.species.unshift({
-      uri: 'virtual:AllSpecies',
-      label: 'All Species',
-      type: 'Species' as EntityType,
-      isCategory: true
-    });
-
-    data.toxinTypes.unshift({
-      uri: 'virtual:AllToxinTypes',
-      label: 'All Toxin Types',
-      type: 'ToxinType' as EntityType,
-      isCategory: true
-    });
-
-    data.pestTypes.unshift({
-      uri: 'virtual:AllPestTypes',
-      label: 'All Pest Types',
-      type: 'PestType' as EntityType,
-      isCategory: true
-    });
   }
 
   /**
@@ -297,13 +184,6 @@ export class EcmoDataService {
    * Get all descendants of a category
    */
   getAllDescendants(categoryUri: string, dataKey: string): Entity[] {
-    // Special handling for virtual "All" entities
-    if (categoryUri.startsWith('virtual:All')) {
-      const items: Entity[] = (this._ecmoData as any)[dataKey] || [];
-      // Return ALL non-category entities in this data key
-      return items.filter(i => !i.isCategory || !i.uri?.startsWith('virtual:'));
-    }
-
     const items: Entity[] = (this._ecmoData as any)[dataKey] || [];
     const directChildren = items.filter(i => i.parent === categoryUri);
     let allDescendants: Entity[] = [];

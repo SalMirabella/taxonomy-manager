@@ -33,6 +33,10 @@ export class QueryBuilderComponent implements OnInit {
   private preventNavigation = false; // Flag to prevent navigation when adding from hover button
   operatorDropdownOpen: string | null = null; // Track which operator dropdown is open (e.g., "Disease", "Symptom")
 
+  // Navigation history
+  navigationHistory: Entity[] = [];
+  navigationIndex: number = -1;
+
   // Data references
   categories: CategoryDef[];
   typeConfig: Record<EntityType, TypeConfig>;
@@ -107,9 +111,24 @@ export class QueryBuilderComponent implements OnInit {
       const items = (this.ecmoData as any)[cat.key] || [];
       // Include all items except virtual "All" entities
       const filtered = items.filter((i: Entity) => !i.uri?.startsWith('virtual:'));
+
+      // Sort: OWL Classes first, then categories, then regular instances
+      const sorted = filtered.sort((a: Entity, b: Entity) => {
+        // OWL Classes first
+        if (a.isOwlClass && !b.isOwlClass) return -1;
+        if (!a.isOwlClass && b.isOwlClass) return 1;
+
+        // Then categories
+        if (a.isCategory && !b.isCategory) return -1;
+        if (!a.isCategory && b.isCategory) return 1;
+
+        // Then alphabetically
+        return a.label.localeCompare(b.label);
+      });
+
       this.searchResults = [
         { isHeader: true, label: cat.label, type: items[0]?.type, key: cat.key },
-        ...filtered,
+        ...sorted,
       ];
       return;
     }
@@ -125,7 +144,21 @@ export class QueryBuilderComponent implements OnInit {
       });
     });
 
-    this.searchResults = results.slice(0, 20);
+    // Sort: OWL Classes first, then categories, then regular instances
+    const sorted = results.sort((a: Entity, b: Entity) => {
+      // OWL Classes first
+      if (a.isOwlClass && !b.isOwlClass) return -1;
+      if (!a.isOwlClass && b.isOwlClass) return 1;
+
+      // Then categories
+      if (a.isCategory && !b.isCategory) return -1;
+      if (!a.isCategory && b.isCategory) return 1;
+
+      // Then alphabetically
+      return a.label.localeCompare(b.label);
+    });
+
+    this.searchResults = sorted.slice(0, 20);
   }
 
   // Query Management - MODIFICATO per supportare categorie e operatori
@@ -208,16 +241,76 @@ export class QueryBuilderComponent implements OnInit {
     this.relatedEntities = [];
   }
 
-  selectEntity(entity: Entity): void {
+  selectEntity(entity: Entity, skipHistory: boolean = false): void {
     if (this.isHeader(entity)) return;
     if (this.preventNavigation) {
       // Don't navigate if we're in the middle of adding without navigation
       this.preventNavigation = false;
       return;
     }
+
+    // Add to navigation history (unless we're navigating via back/forward)
+    if (!skipHistory) {
+      // Remove any forward history if we're navigating to a new entity
+      if (this.navigationIndex < this.navigationHistory.length - 1) {
+        this.navigationHistory = this.navigationHistory.slice(0, this.navigationIndex + 1);
+      }
+
+      // Add the new entity to history
+      this.navigationHistory.push(entity);
+      this.navigationIndex = this.navigationHistory.length - 1;
+    }
+
     this.selected = entity;
     this.detailOpen = true;
     this.updateRelatedEntities();
+  }
+
+  // Navigation history methods
+  canGoBack(): boolean {
+    return this.navigationIndex > 0;
+  }
+
+  canGoForward(): boolean {
+    return this.navigationIndex < this.navigationHistory.length - 1;
+  }
+
+  goBack(): void {
+    if (this.canGoBack()) {
+      this.navigationIndex--;
+      const entity = this.navigationHistory[this.navigationIndex];
+      this.selected = entity;
+      this.detailOpen = true;
+      this.updateRelatedEntities();
+    }
+  }
+
+  goForward(): void {
+    if (this.canGoForward()) {
+      this.navigationIndex++;
+      const entity = this.navigationHistory[this.navigationIndex];
+      this.selected = entity;
+      this.detailOpen = true;
+      this.updateRelatedEntities();
+    }
+  }
+
+  getBreadcrumb(): Entity[] {
+    const breadcrumb: Entity[] = [];
+    let current = this.selected;
+
+    // Build breadcrumb by following parent chain
+    while (current) {
+      breadcrumb.unshift(current);
+
+      if (!current.parent) break;
+
+      // Find parent entity
+      const allEntities = this.dataService.getAllEntities();
+      current = allEntities.find((e: Entity) => e.uri === current!.parent) || null;
+    }
+
+    return breadcrumb;
   }
 
   /**
@@ -292,7 +385,82 @@ export class QueryBuilderComponent implements OnInit {
     const rootCategory = entities.find(e => e.isCategory && !e.parent);
     if (rootCategory) {
       this.selectEntity(rootCategory);
+      return;
     }
+
+    // If no root category exists, create a virtual "All instances" view
+    const typeConfig = this.getTypeConfig(entityType);
+    const virtualAllInstances: Entity = {
+      uri: `virtual:AllInstances:${entityType}`,
+      label: `All ${typeConfig.plural}`,
+      type: entityType,
+      isCategory: true,
+      description: `View all instances of ${typeConfig.label} in the ontology.`
+    };
+
+    this.selectEntity(virtualAllInstances);
+  }
+
+  /**
+   * Get the model fields/properties for a given entity type
+   */
+  getModelFieldsForType(entityType: EntityType): { name: string; property: string }[] {
+    const fieldsMap: Record<EntityType, { name: string; property: string }[]> = {
+      Disease: [
+        { name: 'Routes of Transmission', property: 'hasRouteOfTransmission' },
+        { name: 'Outcomes', property: 'hasOutcome' },
+        { name: 'Incubation Period', property: 'hasIncubationPeriod' }
+      ],
+      Pathogen: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' },
+        { name: 'Produces Toxin', property: 'producesToxin' },
+        { name: 'Causes Diseases', property: 'causesDiseases' }
+      ],
+      Vector: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' },
+        { name: 'Vector of Diseases', property: 'isVectorOf' }
+      ],
+      Host: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' },
+        { name: 'Susceptible To Diseases', property: 'isSusceptibleHostOf' },
+        { name: 'Composed Of Organisms', property: 'composedOfOrganisms' }
+      ],
+      Symptom: [
+        { name: 'Present in Diseases', property: 'isSignOrSymptomOf' }
+      ],
+      Hazard: [
+        { name: 'Manifested in Events', property: 'isManifestationIn' }
+      ],
+      AnimalType: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' }
+      ],
+      PlantType: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' }
+      ],
+      Species: [
+        { name: 'Belongs To', property: 'belongsTo' },
+        { name: 'Taxonomic Rank', property: 'hasRank' },
+        { name: 'Includes', property: 'includes' }
+      ],
+      RouteOfTransmission: [],
+      PHSMType: [],
+      TaxonomicRank: [],
+      SeverityLevel: [],
+      ToxinType: [],
+      PestType: []
+    };
+
+    return fieldsMap[entityType] || [];
   }
 
   /**
@@ -322,6 +490,43 @@ export class QueryBuilderComponent implements OnInit {
 
     // Count non-category entities
     return entities.filter(e => !e.isCategory && !e.isOwlClass).length;
+  }
+
+  /**
+   * Get all instances for a given entity type (sorted: categories first, then instances)
+   */
+  getInstancesForType(entityType: EntityType): Entity[] {
+    const entitiesMap: Record<EntityType, Entity[]> = {
+      Disease: this.ecmoData.diseases,
+      Symptom: this.ecmoData.symptoms,
+      Pathogen: this.ecmoData.pathogens,
+      Vector: this.ecmoData.vectors,
+      Host: this.ecmoData.hosts,
+      Hazard: this.ecmoData.hazards,
+      RouteOfTransmission: this.ecmoData.routesOfTransmission,
+      PHSMType: this.ecmoData.phsmTypes,
+      AnimalType: this.ecmoData.animalTypes,
+      TaxonomicRank: this.ecmoData.taxonomicRanks,
+      SeverityLevel: this.ecmoData.severityLevels,
+      PlantType: this.ecmoData.plantTypes,
+      Species: this.ecmoData.species,
+      ToxinType: this.ecmoData.toxinTypes,
+      PestType: this.ecmoData.pestTypes,
+    };
+
+    const entities = entitiesMap[entityType];
+    if (!entities) return [];
+
+    // Filter out OWL classes, then sort: categories first, then instances alphabetically
+    return entities
+      .filter(e => !e.isOwlClass)
+      .sort((a, b) => {
+        // Categories first
+        if (a.isCategory && !b.isCategory) return -1;
+        if (!a.isCategory && b.isCategory) return 1;
+        // Then alphabetically
+        return a.label.localeCompare(b.label);
+      });
   }
 
   // Results - MODIFICATO per supportare match con categorie (anche multi-livello)
@@ -545,67 +750,87 @@ export class QueryBuilderComponent implements OnInit {
 
   // Check if "All [Category]" is selected
   isAllCategorySelected(key: string): boolean {
-    const virtualUri = `virtual:All${key.charAt(0).toUpperCase() + key.slice(1, -1)}s`;
-    return this.query.some(q => q.entity.uri === virtualUri);
+    // Get the entity type from the first item in this category
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
+    if (items.length === 0) return false;
+
+    const entityType = items[0].type;
+
+    // Check if the OWL Class for this type is in the query
+    const owlClass = this.ecmoData.owlClasses.find((c: Entity) => c.type === entityType && c.isOwlClass);
+    if (!owlClass) return false;
+
+    return this.query.some(q => q.entity.uri === owlClass.uri);
   }
 
   // Toggle "All [Category]" selection
   toggleAllCategory(key: string): void {
     const items: Entity[] = (this.ecmoData as any)[key] || [];
-    const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
-    
-    if (!virtualEntity) return;
-    
+    if (items.length === 0) return;
+
+    const entityType = items[0].type;
+
+    // Find the OWL Class for this type
+    const owlClass = this.ecmoData.owlClasses.find((c: Entity) => c.type === entityType && c.isOwlClass);
+    if (!owlClass) return;
+
     if (this.isAllCategorySelected(key)) {
-      // Remove the virtual "All" entity
-      this.query = this.query.filter(q => q.entity.uri !== virtualEntity.uri);
+      // Remove the OWL Class entity
+      this.query = this.query.filter(q => q.entity.uri !== owlClass.uri);
     } else {
-      // Add the virtual "All" entity
-      const defaultOperator = this.getDefaultOperator(virtualEntity.type);
-      this.query = [...this.query, { entity: virtualEntity, operator: defaultOperator }];
-      
+      // Add the OWL Class entity
+      const defaultOperator = this.getDefaultOperator(owlClass.type);
+      this.query = [...this.query, { entity: owlClass, operator: defaultOperator }];
+
       // Expand the category
       this.expandedCategories = {
         ...this.expandedCategories,
         [key]: true,
       };
     }
-    
+
     this.updateQueryResults();
   }
 
   // Select virtual entity to view details (without adding to query)
   selectVirtualEntity(key: string): void {
+    // Get the entity type from the first item in this category
     const items: Entity[] = (this.ecmoData as any)[key] || [];
-    const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
-    
-    if (virtualEntity) {
-      this.selected = virtualEntity;
-      this.updateRelatedEntities();
-    }
+    if (items.length === 0) return;
+
+    const entityType = items[0].type;
+
+    // Navigate to the OWL Class or root category for this type
+    this.navigateToTypeCategory(entityType);
   }
 
   // Select "All [Category]" from dropdown header
   selectAllFromDropdown(headerItem: any): void {
     if (!headerItem.key) return;
-    
+
+    // Get the entity type from the first item in this category
     const items: Entity[] = (this.ecmoData as any)[headerItem.key] || [];
-    const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
-    
-    if (virtualEntity) {
-      // Add to query
-      if (!this.query.find(q => q.entity.uri === virtualEntity.uri)) {
-        const defaultOperator = this.getDefaultOperator(virtualEntity.type);
-        this.query = [...this.query, { entity: virtualEntity, operator: defaultOperator }];
+    if (items.length === 0) return;
+
+    const entityType = items[0].type;
+
+    // Find the OWL Class for this type
+    const owlClass = this.ecmoData.owlClasses.find((c: Entity) => c.type === entityType && c.isOwlClass);
+
+    if (owlClass) {
+      // Add OWL Class to query
+      if (!this.query.find(q => q.entity.uri === owlClass.uri)) {
+        const defaultOperator = this.getDefaultOperator(owlClass.type);
+        this.query = [...this.query, { entity: owlClass, operator: defaultOperator }];
       }
-      
+
       // Select for details panel
-      this.selected = virtualEntity;
-      
+      this.selected = owlClass;
+
       // Close dropdown
       this.searchQuery = '';
       this.showDropdown = false;
-      
+
       // Update results
       this.updateQueryResults();
       this.updateRelatedEntities();
@@ -802,7 +1027,13 @@ export class QueryBuilderComponent implements OnInit {
 
   // Get non-disease entities from relatedEntities
   getCategoryInstances(): Entity[] {
-    return this.relatedEntities.filter(e => e.type !== 'Disease');
+    const entities = this.relatedEntities.filter(e => e.type !== 'Disease');
+    // Sort: categories first, then instances
+    return entities.sort((a, b) => {
+      if (a.isCategory && !b.isCategory) return -1;
+      if (!a.isCategory && b.isCategory) return 1;
+      return a.label.localeCompare(b.label);
+    });
   }
 
   // Get diseases in a Disease category (for showing in "Diseases in this category" section)
@@ -813,13 +1044,21 @@ export class QueryBuilderComponent implements OnInit {
 
     const dataKey = this.getDataKeyForEntity(this.selected);
 
+    let entities: Entity[];
     if (this.selected.uri?.startsWith('virtual:All')) {
-      // For "All Diseases", get all diseases
-      return this.ecmoData.diseases.filter(d => !d.isCategory);
+      // For "All Diseases", get all diseases (including categories and instances)
+      entities = this.ecmoData.diseases.filter(d => !d.isOwlClass);
     } else {
       // For specific disease categories, get descendants
-      return this.dataService.getAllDescendants(this.selected.uri, dataKey);
+      entities = this.dataService.getAllDescendants(this.selected.uri, dataKey);
     }
+
+    // Sort: categories first, then instances
+    return entities.sort((a, b) => {
+      if (a.isCategory && !b.isCategory) return -1;
+      if (!a.isCategory && b.isCategory) return 1;
+      return a.label.localeCompare(b.label);
+    });
   }
 
   getRelationLabel(type: string): string {
