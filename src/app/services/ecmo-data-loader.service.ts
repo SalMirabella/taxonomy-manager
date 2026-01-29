@@ -1202,30 +1202,49 @@ export class EcmoDataLoaderService {
     };
 
     rootClasses.forEach(rootUri => {
-      const entityType = this.getEntityTypeForOwlClass(rootUri);
       const classInfo = classMap.get(rootUri)!;
 
-      console.log(`  → Processing root class: ${classInfo.label} → ${entityType}`);
+      // Try to determine EntityType using hierarchy-based inference
+      let entityType = this.inferEntityTypeFromHierarchy(rootUri, classMap);
 
-      // Build flat hierarchy for this root class
-      const entities = this.buildFlatHierarchy(
-        rootUri,
-        classMap,
-        hierarchyTree,
-        instancesByClass,
-        entityType
-      );
+      if (entityType) {
+        console.log(`  → Processing root class: ${classInfo.label} → ${entityType}`);
 
-      // Add to the appropriate array based on entity type
-      const key = this.getDataKeyForEntityType(entityType);
-      if (key && result[key]) {
-        (result[key] as Entity[]).push(...entities);
-      }
+        // Build flat hierarchy for this root class
+        const entities = this.buildFlatHierarchy(
+          rootUri,
+          classMap,
+          hierarchyTree,
+          instancesByClass,
+          entityType
+        );
 
-      // Also add root class to owlClasses array
-      const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
-      if (rootClassEntity) {
-        result.owlClasses!.push(rootClassEntity);
+        // Add to the appropriate array based on entity type
+        const key = this.getDataKeyForEntityType(entityType);
+        if (key && result[key]) {
+          (result[key] as Entity[]).push(...entities);
+        }
+
+        // Also add root class to owlClasses array
+        const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
+        if (rootClassEntity) {
+          result.owlClasses!.push(rootClassEntity);
+        }
+      } else {
+        // No EntityType mapping found - add to owlClasses only
+        console.log(`  ⚠️  No mapping found for root class: ${classInfo.label} - adding to OWL classes only`);
+
+        const unmappedClass: Entity = {
+          uri: this.convertToShortUri(rootUri),
+          label: classInfo.label,
+          type: 'Hazard', // Use Hazard as fallback type for unmapped classes
+          isOwlClass: true,
+          isCategory: true,
+          description: classInfo.description,
+          subClassOf: classInfo.subClassOf.length > 0 ? classInfo.subClassOf : undefined
+        };
+
+        result.owlClasses!.push(unmappedClass);
       }
     });
 
@@ -1292,12 +1311,11 @@ export class EcmoDataLoaderService {
   }
 
   /**
-   * Map OWL Class URI to EntityType
-   * Uses intelligent matching to automatically map root classes
-   * Always returns an EntityType (uses fallback if needed)
+   * Map OWL Class URI to EntityType using ONLY exact mappings
+   * Returns null for unmapped classes - they will be processed based on subClassOf structure
    */
-  private getEntityTypeForOwlClass(uri: string): EntityType {
-    // Step 1: Try exact URI matches first (most precise)
+  private getEntityTypeForOwlClass(uri: string): EntityType | null {
+    // ONLY exact URI matches - no pattern matching, no guessing
     const exactMappings: Record<string, EntityType> = {
       [`${this.PH_PREFIX}Disease`]: 'Disease',
       [`${this.PH_PREFIX}SignOrSymptom`]: 'Symptom',
@@ -1318,51 +1336,46 @@ export class EcmoDataLoaderService {
       [`${this.PH_PREFIX}PestType`]: 'PestType'
     };
 
-    if (exactMappings[uri]) {
-      return exactMappings[uri];
-    }
+    return exactMappings[uri] || null;
+  }
 
-    // Step 2: Try intelligent pattern matching based on URI name
-    // Extract the class name from URI (last part after # or /)
-    const uriParts = uri.split(/[/#]/);
-    const className = uriParts[uriParts.length - 1].toLowerCase();
+  /**
+   * Infer EntityType from subClassOf structure
+   * Walks up the hierarchy to find a mapped parent class
+   */
+  private inferEntityTypeFromHierarchy(
+    classUri: string,
+    classMap: Map<string, OwlClassInfo>
+  ): EntityType | null {
+    const classInfo = classMap.get(classUri);
+    if (!classInfo) return null;
 
-    // Define flexible patterns for matching
-    const patterns: Array<{ pattern: RegExp | string; entityType: EntityType }> = [
-      { pattern: /disease|illness|condition|syndrome/i, entityType: 'Disease' },
-      { pattern: /symptom|sign/i, entityType: 'Symptom' },
-      { pattern: /pathogen|virus|bacteria|parasite|microorganism/i, entityType: 'Pathogen' },
-      { pattern: /vector/i, entityType: 'Vector' },
-      { pattern: /host|animal.*type|population/i, entityType: 'Host' },
-      { pattern: /hazard|risk|danger|threat/i, entityType: 'Hazard' },
-      { pattern: /route|transmission|spread/i, entityType: 'RouteOfTransmission' },
-      { pattern: /phsm|measure|intervention/i, entityType: 'PHSMType' },
-      { pattern: /taxonomic|rank|classification/i, entityType: 'TaxonomicRank' },
-      { pattern: /severity|level|scale/i, entityType: 'SeverityLevel' },
-      { pattern: /plant/i, entityType: 'PlantType' },
-      { pattern: /species|organism/i, entityType: 'Species' },
-      { pattern: /toxin|poison/i, entityType: 'ToxinType' },
-      { pattern: /pest/i, entityType: 'PestType' }
-    ];
+    // Check direct mapping first
+    const directMapping = this.getEntityTypeForOwlClass(classUri);
+    if (directMapping) return directMapping;
 
-    // Try to match against patterns
-    for (const { pattern, entityType } of patterns) {
-      if (pattern instanceof RegExp) {
-        if (pattern.test(className)) {
-          console.log(`  🎯 Auto-mapped "${className}" → ${entityType} (pattern match)`);
-          return entityType;
-        }
-      } else {
-        if (className.includes(pattern.toLowerCase())) {
-          console.log(`  🎯 Auto-mapped "${className}" → ${entityType} (string match)`);
-          return entityType;
-        }
+    // Walk up the subClassOf chain to find a mapped ancestor
+    for (const parentUri of classInfo.subClassOf) {
+      // Skip generic OWL parents
+      if (parentUri.includes('owl#') || parentUri.includes('dul/DUL')) {
+        continue;
+      }
+
+      // Try to get mapping for parent
+      const parentMapping = this.getEntityTypeForOwlClass(parentUri);
+      if (parentMapping) {
+        console.log(`  📍 Inferred type for "${classInfo.label}" from parent → ${parentMapping}`);
+        return parentMapping;
+      }
+
+      // Recursively check parent's parents
+      const inheritedType = this.inferEntityTypeFromHierarchy(parentUri, classMap);
+      if (inheritedType) {
+        console.log(`  📍 Inferred type for "${classInfo.label}" from ancestor → ${inheritedType}`);
+        return inheritedType;
       }
     }
 
-    // Step 3: If still no match, use a default fallback
-    // Use 'Hazard' as a generic fallback for unmapped classes
-    console.log(`  ⚠️  Using fallback mapping for "${className}" → Hazard`);
-    return 'Hazard';
+    return null;
   }
 }
