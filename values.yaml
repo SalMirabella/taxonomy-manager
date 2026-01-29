@@ -1,0 +1,94 @@
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### Helm values for brighter-fe-taxonomy-prototype
+### This is a YAML-formatted file.
+##
+## Based on JRC DevOps Team Template revision 1.3.1
+##
+templateRevision: 131
+
+#########################################################
+####   Deployment Configuration                      ####
+#########################################################
+deployment:
+  ## Pod Replicas
+  replicaCount: 2
+
+  ## No environment variables needed (static frontend)
+  # env: []
+
+  ### Liveness probe
+  ## Checks if container is alive - restarts pod if fails
+  livenessProbe:
+    httpGet:
+      path: /alive
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 30
+    timeoutSeconds: 5
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+
+  ### Readiness probe
+  ## Checks if container is ready to serve traffic
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 10
+    timeoutSeconds: 5
+    periodSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+
+  ## Resource limits
+  ## Adjusted for nginx + Angular SPA static frontend
+  resources:
+    requests:
+      cpu: 50m       # Minimum for nginx + Angular SPA
+      memory: 64Mi   # Sufficient for nginx serving static files
+    limits:
+      cpu: 250m      # Allows bursts for initial loads
+      memory: 256Mi  # Comfortable limit for static content
+
+  ### Network Ports
+  ## Container (pod) exposed port
+  ports:
+  - containerPort: 8080
+    name: http
+
+  ### Service ports
+  ## Ports exposed internally at cluster level
+  servicePorts:
+  - name: http
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+
+  ### Route - Expose service outside OpenShift cluster
+  ## HTTPS with TLS edge termination
+  route:
+    enabled: true
+    isOnDMZ: false
+    # nameOverride: brighter-fe-taxonomy-prototype
+    # urlOverride: custom-domain.jrc.ec.europa.eu
+    # path: /taxonomy  # optional path prefix
+    targetPort: http
+    annotations:
+      haproxy.router.openshift.io/timeout: 300s
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+  ## Autoscaler (disabled for now, enable in production if needed)
+  # autoScaler:
+  #   minReplicas: 2
+  #   maxReplicas: 5
+  #   metrics:
+  #   - type: Resource
+  #     resource:
+  #       name: cpu
+  #       target:
+  #         averageUtilization: 750
+  #         type: Utilization
