@@ -8,18 +8,8 @@ import {
   EntityType,
   TypeConfig,
   CategoryDef,
-  TYPE_CONFIG,
-  CATEGORIES,
-  RELATION_KEYS,
-  ECMO_DATA,
-  EIOS_ARTICLES,
-  getAllEntities,
-  getAllEntitiesIncludingVirtual,
-  getEntityByUri,
-  getAllDescendants,
-  RELATION_LABELS,
-  REVERSE_RELATION_LABELS,
 } from './query-builder.data';
+import { EcmoDataService } from '../services/ecmo-data.service';
 
 @Component({
   selector: 'app-query-builder',
@@ -44,9 +34,33 @@ export class QueryBuilderComponent implements OnInit {
   operatorDropdownOpen: string | null = null; // Track which operator dropdown is open (e.g., "Disease", "Symptom")
 
   // Data references
-  categories = CATEGORIES;
-  typeConfig = TYPE_CONFIG;
-  ecmoData = ECMO_DATA;
+  categories: CategoryDef[];
+  typeConfig: Record<EntityType, TypeConfig>;
+  ecmoData: {
+    diseases: Entity[];
+    symptoms: Entity[];
+    pathogens: Entity[];
+    vectors: Entity[];
+    hosts: Entity[];
+    hazards: Entity[];
+    routesOfTransmission: Entity[];
+    phsmTypes: Entity[];
+    animalTypes: Entity[];
+    taxonomicRanks: Entity[];
+    severityLevels: Entity[];
+    plantTypes: Entity[];
+    species: Entity[];
+    toxinTypes: Entity[];
+    pestTypes: Entity[];
+    owlClasses: Entity[];
+    relations: Record<string, Record<string, string[]>>;
+  };
+
+  constructor(private dataService: EcmoDataService) {
+    this.categories = dataService.categories;
+    this.typeConfig = dataService.typeConfig;
+    this.ecmoData = dataService.ecmoData;
+  }
 
   // Computed
   searchResults: (Entity | { isHeader: true; label: string; type: EntityType; key: string })[] = [];
@@ -85,12 +99,12 @@ export class QueryBuilderComponent implements OnInit {
     const q = this.searchQuery.toLowerCase();
 
     // Search for category
-    const cat = CATEGORIES.find(
+    const cat = this.categories.find(
       c => c.label.toLowerCase().includes(q) || c.key.includes(q)
     );
 
     if (cat) {
-      const items = (ECMO_DATA as any)[cat.key] || [];
+      const items = (this.ecmoData as any)[cat.key] || [];
       // Include all items except virtual "All" entities
       const filtered = items.filter((i: Entity) => !i.uri?.startsWith('virtual:'));
       this.searchResults = [
@@ -102,8 +116,8 @@ export class QueryBuilderComponent implements OnInit {
 
     // Search entities
     const results: Entity[] = [];
-    CATEGORIES.forEach(category => {
-      const items: Entity[] = (ECMO_DATA as any)[category.key] || [];
+    this.categories.forEach(category => {
+      const items: Entity[] = (this.ecmoData as any)[category.key] || [];
       items.forEach(item => {
         if (item.label.toLowerCase().includes(q)) {
           results.push(item);
@@ -206,6 +220,110 @@ export class QueryBuilderComponent implements OnInit {
     this.updateRelatedEntities();
   }
 
+  /**
+   * Navigate to the parent category of the current entity
+   */
+  navigateToParentCategory(): void {
+    if (!this.selected || this.selected.isCategory) return;
+
+    // Find the parent category entity
+    const parentUri = this.selected.parent;
+    if (!parentUri) return;
+
+    // Search for the parent entity across all entity types
+    const allEntities = [
+      ...this.ecmoData.diseases,
+      ...this.ecmoData.symptoms,
+      ...this.ecmoData.pathogens,
+      ...this.ecmoData.vectors,
+      ...this.ecmoData.hosts,
+      ...this.ecmoData.hazards
+    ];
+
+    const parentEntity = allEntities.find(e => e.uri === parentUri);
+    if (parentEntity) {
+      this.selectEntity(parentEntity);
+    }
+  }
+
+  /**
+   * Navigate to the OWL Class definition of a given entity type
+   */
+  navigateToTypeCategory(entityType: EntityType): void {
+    // First, try to find the OWL Class for this type
+    const owlClass = this.ecmoData.owlClasses.find((c: Entity) => c.type === entityType && c.isOwlClass);
+
+    if (owlClass) {
+      // Select the OWL Class definition
+      this.selectEntity(owlClass);
+      return;
+    }
+
+    // Fallback: find the root category if no OWL Class exists
+    this.navigateToRootCategory(entityType);
+  }
+
+  /**
+   * Navigate to the root category (all instances) of a given entity type
+   */
+  navigateToRootCategory(entityType: EntityType): void {
+    const entitiesMap: Record<EntityType, Entity[]> = {
+      Disease: this.ecmoData.diseases,
+      Symptom: this.ecmoData.symptoms,
+      Pathogen: this.ecmoData.pathogens,
+      Vector: this.ecmoData.vectors,
+      Host: this.ecmoData.hosts,
+      Hazard: this.ecmoData.hazards,
+      RouteOfTransmission: this.ecmoData.routesOfTransmission,
+      PHSMType: this.ecmoData.phsmTypes,
+      AnimalType: this.ecmoData.animalTypes,
+      TaxonomicRank: this.ecmoData.taxonomicRanks,
+      SeverityLevel: this.ecmoData.severityLevels,
+      PlantType: this.ecmoData.plantTypes,
+      Species: this.ecmoData.species,
+      ToxinType: this.ecmoData.toxinTypes,
+      PestType: this.ecmoData.pestTypes,
+    };
+
+    const entities = entitiesMap[entityType];
+    if (!entities) return;
+
+    // Find the root category (isCategory = true, no parent)
+    const rootCategory = entities.find(e => e.isCategory && !e.parent);
+    if (rootCategory) {
+      this.selectEntity(rootCategory);
+    }
+  }
+
+  /**
+   * Get the count of instances for a given entity type
+   */
+  getInstanceCountForType(entityType: EntityType): number {
+    const entitiesMap: Record<EntityType, Entity[]> = {
+      Disease: this.ecmoData.diseases,
+      Symptom: this.ecmoData.symptoms,
+      Pathogen: this.ecmoData.pathogens,
+      Vector: this.ecmoData.vectors,
+      Host: this.ecmoData.hosts,
+      Hazard: this.ecmoData.hazards,
+      RouteOfTransmission: this.ecmoData.routesOfTransmission,
+      PHSMType: this.ecmoData.phsmTypes,
+      AnimalType: this.ecmoData.animalTypes,
+      TaxonomicRank: this.ecmoData.taxonomicRanks,
+      SeverityLevel: this.ecmoData.severityLevels,
+      PlantType: this.ecmoData.plantTypes,
+      Species: this.ecmoData.species,
+      ToxinType: this.ecmoData.toxinTypes,
+      PestType: this.ecmoData.pestTypes,
+    };
+
+    const entities = entitiesMap[entityType];
+    if (!entities) return 0;
+
+    // Count non-category entities
+    return entities.filter(e => !e.isCategory && !e.isOwlClass).length;
+  }
+
   // Results - MODIFICATO per supportare match con categorie (anche multi-livello)
   updateQueryResults(): void {
     if (this.query.length === 0) {
@@ -213,7 +331,7 @@ export class QueryBuilderComponent implements OnInit {
       return;
     }
 
-    this.queryResults = EIOS_ARTICLES.filter(article => {
+    this.queryResults = this.dataService.articles.filter(article => {
       // Start with true/false based on first entity's operator
       const firstQe = this.query[0];
       const firstMatch = this.matchesEntity(article, firstQe.entity);
@@ -257,10 +375,10 @@ export class QueryBuilderComponent implements OnInit {
     // Se è una categoria, matcha se l'articolo contiene QUALSIASI discendente
     if (entity.isCategory) {
       const dataKey = this.getDataKeyForEntity(entity);
-      const descendants = getAllDescendants(entity.uri, dataKey);
+      const descendants = this.dataService.getAllDescendants(entity.uri, dataKey);
       return descendants.some(child => article.entities.includes(child.uri));
     }
-    
+
     // Se è un'istanza, match diretto
     return article.entities.includes(entity.uri);
   }
@@ -271,21 +389,21 @@ export class QueryBuilderComponent implements OnInit {
       return;
     }
 
-    const allEntities = getAllEntities();
+    const allEntities = this.dataService.getAllEntities();
 
     // If selected is a CATEGORY/CLASS
     if (this.selected.isCategory) {
       if (this.selected.type === 'Disease') {
         // Get all descendant diseases
         const dataKey = this.getDataKeyForEntity(this.selected);
-        const descendantDiseases = getAllDescendants(this.selected.uri, dataKey);
-        
+        const descendantDiseases = this.dataService.getAllDescendants(this.selected.uri, dataKey);
+
         // Aggregate all related entities from descendant diseases
         const aggregatedUris = new Set<string>();
-        
+
         descendantDiseases.forEach(disease => {
-          const rels = ECMO_DATA.relations[disease.uri] || {};
-          RELATION_KEYS.forEach(key => {
+          const rels = this.ecmoData.relations[disease.uri] || {};
+          this.dataService.relationKeys.forEach(key => {
             (rels[key] || []).forEach((uri: string) => {
               aggregatedUris.add(uri);
             });
@@ -306,24 +424,24 @@ export class QueryBuilderComponent implements OnInit {
         
         // Get all entities in this category (either all items or just children)
         let categoryEntities: Entity[];
-        
+
         if (this.selected.uri?.startsWith('virtual:All')) {
           // For virtual "All", get everything except the virtual entity itself
-          const allItems: Entity[] = (ECMO_DATA as any)[dataKey] || [];
+          const allItems: Entity[] = (this.ecmoData as any)[dataKey] || [];
           categoryEntities = allItems.filter(i => !i.uri?.startsWith('virtual:'));
         } else {
           // For regular categories, get all descendants recursively
-          categoryEntities = getAllDescendants(this.selected.uri, dataKey);
+          categoryEntities = this.dataService.getAllDescendants(this.selected.uri, dataKey);
         }
         
         // Calculate inverse relations: find diseases that reference these entities
         const relatedDiseaseUris = new Set<string>();
         const categoryEntityUris = new Set(categoryEntities.map(e => e.uri));
-        
-        ECMO_DATA.diseases.forEach(disease => {
-          const rels = ECMO_DATA.relations[disease.uri];
+
+        this.ecmoData.diseases.forEach(disease => {
+          const rels = this.ecmoData.relations[disease.uri];
           if (rels) {
-            RELATION_KEYS.forEach(key => {
+            this.dataService.relationKeys.forEach(key => {
               const values = rels[key] || [];
               if (values.some(uri => categoryEntityUris.has(uri))) {
                 relatedDiseaseUris.add(disease.uri);
@@ -334,7 +452,7 @@ export class QueryBuilderComponent implements OnInit {
         
         // Store both: the related diseases and the category entities
         const diseases = Array.from(relatedDiseaseUris)
-          .map(uri => ECMO_DATA.diseases.find(d => d.uri === uri))
+          .map(uri => this.ecmoData.diseases.find(d => d.uri === uri))
           .filter(Boolean) as Entity[];
         
         // Put diseases first, then category entities
@@ -345,9 +463,9 @@ export class QueryBuilderComponent implements OnInit {
 
     // If selected is an INSTANCE (existing logic)
     if (this.selected.type === 'Disease') {
-      const rels = ECMO_DATA.relations[this.selected.uri] || {};
+      const rels = this.ecmoData.relations[this.selected.uri] || {};
       const results: Entity[] = [];
-      RELATION_KEYS.forEach(key => {
+      this.dataService.relationKeys.forEach(key => {
         (rels[key] || []).forEach((uri: string) => {
           const found = allEntities.find(e => e.uri === uri);
           if (found) results.push(found);
@@ -356,10 +474,10 @@ export class QueryBuilderComponent implements OnInit {
       this.relatedEntities = results;
     } else {
       // Find diseases that have this entity
-      const diseases = ECMO_DATA.diseases.filter(d => {
+      const diseases = this.ecmoData.diseases.filter(d => {
         if (d.isCategory) return false;
-        const rels = ECMO_DATA.relations[d.uri] || {};
-        return RELATION_KEYS.some(k => (rels[k] || []).includes(this.selected!.uri));
+        const rels = this.ecmoData.relations[d.uri] || {};
+        return this.dataService.relationKeys.some(k => (rels[k] || []).includes(this.selected!.uri));
       });
       this.relatedEntities = diseases;
     }
@@ -405,7 +523,7 @@ export class QueryBuilderComponent implements OnInit {
 
   // Select all entities in a category
   selectAllInCategory(key: string): void {
-    const items: Entity[] = (ECMO_DATA as any)[key] || [];
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
     const selectableItems = items.filter(i => !i.isCategory);
     
     // Add all selectable items to query
@@ -433,7 +551,7 @@ export class QueryBuilderComponent implements OnInit {
 
   // Toggle "All [Category]" selection
   toggleAllCategory(key: string): void {
-    const items: Entity[] = (ECMO_DATA as any)[key] || [];
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
     const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
     
     if (!virtualEntity) return;
@@ -458,7 +576,7 @@ export class QueryBuilderComponent implements OnInit {
 
   // Select virtual entity to view details (without adding to query)
   selectVirtualEntity(key: string): void {
-    const items: Entity[] = (ECMO_DATA as any)[key] || [];
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
     const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
     
     if (virtualEntity) {
@@ -471,7 +589,7 @@ export class QueryBuilderComponent implements OnInit {
   selectAllFromDropdown(headerItem: any): void {
     if (!headerItem.key) return;
     
-    const items: Entity[] = (ECMO_DATA as any)[headerItem.key] || [];
+    const items: Entity[] = (this.ecmoData as any)[headerItem.key] || [];
     const virtualEntity = items.find(i => i.uri?.startsWith('virtual:All'));
     
     if (virtualEntity) {
@@ -500,16 +618,16 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   getTypeConfig(type: EntityType): TypeConfig {
-    return TYPE_CONFIG[type];
+    return this.typeConfig[type];
   }
 
   getCategoryTypeConfig(key: string): TypeConfig | null {
     const items = this.getCategoryItems(key);
-    return items.length > 0 ? TYPE_CONFIG[items[0].type] : null;
+    return items.length > 0 ? this.typeConfig[items[0].type] : null;
   }
 
   getSelectedConfig(): TypeConfig | null {
-    return this.selected ? TYPE_CONFIG[this.selected.type] : null;
+    return this.selected ? this.typeConfig[this.selected.type] : null;
   }
 
   isInQuery(uri: string): boolean {
@@ -517,24 +635,24 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   getChildren(parentUri: string, dataKey: string): Entity[] {
-    const items: Entity[] = (ECMO_DATA as any)[dataKey] || [];
+    const items: Entity[] = (this.ecmoData as any)[dataKey] || [];
     return items.filter(i => i.parent === parentUri);
   }
 
   getCategoryItems(key: string): Entity[] {
-    const items: Entity[] = (ECMO_DATA as any)[key] || [];
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
     // Return only top-level items (no parent) and exclude virtual "All" entities
     return items.filter(i => !i.parent && !i.uri?.startsWith('virtual:'));
   }
 
   getSelectableCount(key: string): number {
-    const items: Entity[] = (ECMO_DATA as any)[key] || [];
+    const items: Entity[] = (this.ecmoData as any)[key] || [];
     return items.filter(i => !i.isCategory).length;
   }
 
   getDataKeyForEntity(entity: Entity): string {
-    for (const cat of CATEGORIES) {
-      const items: Entity[] = (ECMO_DATA as any)[cat.key] || [];
+    for (const cat of this.categories) {
+      const items: Entity[] = (this.ecmoData as any)[cat.key] || [];
       if (items.some(i => i.uri === entity.uri)) {
         return cat.key;
       }
@@ -618,7 +736,7 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   getTypeLabel(type: EntityType, count: number): string {
-    const cfg = TYPE_CONFIG[type];
+    const cfg = this.typeConfig[type];
     return count > 1 ? cfg.plural : cfg.singular;
   }
 
@@ -692,40 +810,207 @@ export class QueryBuilderComponent implements OnInit {
     if (!this.selected || this.selected.type !== 'Disease' || !this.selected.isCategory) {
       return [];
     }
-    
+
     const dataKey = this.getDataKeyForEntity(this.selected);
-    
+
     if (this.selected.uri?.startsWith('virtual:All')) {
       // For "All Diseases", get all diseases
-      return ECMO_DATA.diseases.filter(d => !d.isCategory);
+      return this.ecmoData.diseases.filter(d => !d.isCategory);
     } else {
       // For specific disease categories, get descendants
-      return getAllDescendants(this.selected.uri, dataKey);
+      return this.dataService.getAllDescendants(this.selected.uri, dataKey);
     }
   }
 
   getRelationLabel(type: string): string {
-    return (RELATION_LABELS as any)[type]?.plural || type;
+    return (this.dataService.relationLabels as any)[type]?.plural || type;
   }
 
   getReverseRelationLabel(type: EntityType): string {
-    return REVERSE_RELATION_LABELS[type] || 'is related to';
+    return this.dataService.reverseRelationLabels[type] || 'is related to';
   }
 
   // NUOVO: Descrizione entità per natural language
   getEntityDescription(entity: Entity): string {
     if (entity.isCategory) {
       const dataKey = this.getDataKeyForEntity(entity);
-      const descendants = getAllDescendants(entity.uri, dataKey);
-      
+      const descendants = this.dataService.getAllDescendants(entity.uri, dataKey);
+
       // For virtual "All" entities, don't add the type suffix
       if (entity.uri?.startsWith('virtual:All')) {
         return `any ${entity.label.toLowerCase()} (${descendants.length} types)`;
       }
-      
+
       return `any ${entity.label.toLowerCase()} (${descendants.length} types)`;
     }
     return entity.label;
+  }
+
+  /**
+   * Format property value by removing URI prefixes and converting to readable text
+   */
+  formatPropertyValue(value: any): string {
+    if (Array.isArray(value)) {
+      return value.map(v => this.formatSingleValue(v)).join(', ');
+    }
+    return this.formatSingleValue(value);
+  }
+
+  private formatSingleValue(value: any): string {
+    if (typeof value !== 'string') {
+      return String(value);
+    }
+
+    // Remove URI prefixes (ph:, bio:, core:)
+    let formatted = value;
+    if (formatted.startsWith('ph:')) {
+      formatted = formatted.substring(3);
+    } else if (formatted.startsWith('bio:')) {
+      formatted = formatted.substring(4);
+    } else if (formatted.startsWith('core:')) {
+      formatted = formatted.substring(5);
+    }
+
+    // Convert CamelCase to Title Case with spaces
+    formatted = formatted.replace(/([A-Z])/g, ' $1').trim();
+
+    return formatted;
+  }
+
+  /**
+   * Get entities from property URIs (for clickable tags)
+   */
+  getEntitiesFromProperty(propertyValues: string[] | string): Entity[] {
+    if (!propertyValues) return [];
+
+    const values = Array.isArray(propertyValues) ? propertyValues : [propertyValues];
+    const entities: Entity[] = [];
+    const allEntities = this.dataService.getAllEntities();
+
+    values.forEach(uri => {
+      const entity = allEntities.find(e => e.uri === uri);
+      if (entity) {
+        entities.push(entity);
+      }
+    });
+
+    return entities;
+  }
+
+  /**
+   * Check if a property value is a list of entity URIs (vs plain text values)
+   */
+  isPropertyValueEntityList(value: any): boolean {
+    if (!value) return false;
+
+    // If it's not an array or string, it's not an entity URI
+    if (!Array.isArray(value) && typeof value !== 'string') return false;
+
+    // Get the values as an array
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length === 0) return false;
+
+    // Check if at least one value is an entity URI (has prefix ph:, bio:, or core:)
+    return values.some((v: any) => {
+      if (typeof v !== 'string') return false;
+      return v.startsWith('ph:') || v.startsWith('bio:') || v.startsWith('core:');
+    });
+  }
+
+  /**
+   * Format property name from camelCase to human-readable
+   */
+  formatPropertyName(propName: string): string {
+    // Special cases for better readability
+    const specialCases: Record<string, string> = {
+      'taxonomicRank': 'Taxonomic Rank',
+      'belongsTo': 'Belongs To',
+      'includes': 'Includes',
+      'producesToxin': 'Produces Toxin',
+      'causedDiseases': 'Causes Diseases',
+      'vectorOfDiseases': 'Vector of Diseases',
+      'susceptibleToDiseases': 'Susceptible to Diseases',
+      'composedOfOrganisms': 'Composed of Organisms',
+      'presentInDiseases': 'Present in Diseases',
+      'manifestedInEvents': 'Manifested in Events',
+      'routesOfTransmission': 'Routes of Transmission',
+      'incubationPeriod': 'Incubation Period',
+      'outcomes': 'Outcomes'
+    };
+
+    if (specialCases[propName]) {
+      return specialCases[propName];
+    }
+
+    // Convert camelCase to Title Case
+    return propName
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  }
+
+  /**
+   * Check if a property has a value (not empty)
+   */
+  hasPropertyValue(value: any): boolean {
+    if (value === null || value === undefined) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'string') return value.trim().length > 0;
+    return true;
+  }
+
+  /**
+   * Get URI values from a property (for displaying as widgets even if entity doesn't exist)
+   */
+  getUriValuesFromProperty(propertyValues: string[] | string): string[] {
+    if (!propertyValues) return [];
+    return Array.isArray(propertyValues) ? propertyValues : [propertyValues];
+  }
+
+  /**
+   * Find entity by URI (returns null if not found)
+   */
+  findEntityByUri(uri: string): Entity | null {
+    const allEntities = this.dataService.getAllEntities();
+    return allEntities.find(e => e.uri === uri) || null;
+  }
+
+  /**
+   * Find all entities that reference the current entity in their properties (inverse relationships)
+   * Returns grouped by property name
+   */
+  getInverseRelationships(): { propertyName: string; entities: Entity[] }[] {
+    if (!this.selected) return [];
+
+    const allEntities = this.dataService.getAllEntitiesIncludingVirtual();
+    const inverseMap = new Map<string, Entity[]>();
+
+    // Scan all entities to find those that reference the current entity
+    allEntities.forEach(entity => {
+      if (!entity.properties || entity.uri === this.selected?.uri) return;
+
+      // Check each property
+      Object.entries(entity.properties).forEach(([propName, propValue]) => {
+        if (!propValue) return;
+
+        const values = Array.isArray(propValue) ? propValue : [propValue];
+
+        // Check if any value references the current entity
+        values.forEach((val: any) => {
+          if (typeof val === 'string' && val === this.selected?.uri) {
+            if (!inverseMap.has(propName)) {
+              inverseMap.set(propName, []);
+            }
+            inverseMap.get(propName)!.push(entity);
+          }
+        });
+      });
+    });
+
+    // Convert to array and sort by property name
+    return Array.from(inverseMap.entries())
+      .map(([propertyName, entities]) => ({ propertyName, entities }))
+      .sort((a, b) => a.propertyName.localeCompare(b.propertyName));
   }
 
   // Group related entities by type
@@ -742,7 +1027,7 @@ export class QueryBuilderComponent implements OnInit {
   }
 
   getArticleEntity(uri: string): Entity | undefined {
-    return getEntityByUri(uri);
+    return this.dataService.getEntityByUri(uri);
   }
 
   trackByUri(index: number, item: Entity): string {

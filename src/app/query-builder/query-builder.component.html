@@ -433,7 +433,14 @@
               [style.color]="getSelectedConfig()?.color">
               <span *ngIf="selected.isCategory">📂</span>
               {{ getSelectedConfig()?.icon }} {{ selected.label }}
-              <span class="text-sm font-normal opacity-70">({{ getSelectedConfig()?.label }}{{ selected.isCategory ? ' Category' : '' }})</span>
+              <span
+                class="text-sm font-normal opacity-70"
+                [class.cursor-pointer]="!selected.isCategory && selected.parent"
+                [class.hover:opacity-100]="!selected.isCategory && selected.parent"
+                [class.hover:underline]="!selected.isCategory && selected.parent"
+                (click)="!selected.isCategory && selected.parent && navigateToParentCategory()"
+                [title]="!selected.isCategory && selected.parent ? 'Click to view ' + getSelectedConfig()?.label + ' category structure' : ''"
+              >({{ getSelectedConfig()?.label }}{{ selected.isCategory ? ' Category' : '' }})</span>
             </h3>
             <button
               *ngIf="!isInQuery(selected.uri)"
@@ -470,9 +477,9 @@
           <div *ngIf="selected.isCategory" class="space-y-4">
             <div class="flex items-start justify-between gap-4">
               <p class="text-slate-300 flex-1">
-                The category <strong class="text-white">{{ selected.label }}</strong> 
-                <span *ngIf="selected.type === 'Disease'">includes the following diseases and their associated entities:</span>
-                <span *ngIf="selected.type !== 'Disease'"> includes the following entities:</span>
+                The category <strong class="text-white">{{ selected.label }}</strong>
+                <span *ngIf="selected.type === 'Disease'">includes the following <button (click)="navigateToTypeCategory('Disease')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">diseases</button> and their associated entities:</span>
+                <span *ngIf="selected.type !== 'Disease'"> includes the following <button (click)="navigateToTypeCategory(selected.type)" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">{{ getTypeConfig(selected.type).plural }}</button>:</span>
               </p>
               <button
                 *ngIf="!isInQuery(selected.uri)"
@@ -482,7 +489,13 @@
                 + Add to query
               </button>
             </div>
-            
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
             <!-- For Disease categories: show aggregated relationships -->
             <ng-container *ngIf="selected.type === 'Disease' && relatedEntities.length > 0">
               <div class="bg-slate-700/30 rounded-lg p-3 mb-3">
@@ -594,44 +607,119 @@
             </p>
           </div>
 
-          <!-- Disease Instance Detail -->
-          <div *ngIf="!selected.isCategory && selected.type === 'Disease'" class="space-y-4">
-            <div class="flex items-start justify-between gap-4">
-              <p class="text-slate-300 flex-1">
-                The disease <strong class="text-white">{{ selected.label }}</strong> has the following characteristics:
+          <!-- OWL Class Detail -->
+          <div *ngIf="selected.isOwlClass" class="space-y-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span [style.color]="getTypeConfig(selected.type).color" class="text-2xl">
+                {{ getTypeConfig(selected.type).icon }}
+              </span>
+              <h3 class="text-xl font-semibold text-white">{{ selected.label }}</h3>
+              <span class="text-xs px-2 py-0.5 rounded bg-purple-600/20 text-purple-300 border border-purple-500/30">
+                OWL Class
+              </span>
+            </div>
+
+            <p class="text-slate-400 text-sm">
+              This is the ontological class definition for {{ selected.label }}.
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Definition</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- SubClass Of -->
+            <div *ngIf="selected.subClassOf && selected.subClassOf.length > 0" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-2">Subclass Of</p>
+              <div class="space-y-1">
+                <div *ngFor="let parentUri of selected.subClassOf" class="text-sm">
+                  <ng-container *ngIf="findEntityByUri(parentUri) as parentClass">
+                    <button (click)="selectEntity(parentClass)"
+                      class="text-indigo-400 hover:text-indigo-300 underline">
+                      {{ parentClass.label }}
+                    </button>
+                  </ng-container>
+                  <span *ngIf="!findEntityByUri(parentUri)" class="text-slate-500">
+                    {{ formatPropertyValue(parentUri) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Instances Count -->
+            <div class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-2">Instances</p>
+              <p class="text-sm text-slate-300">
+                This class has <strong class="text-white">{{ getInstanceCountForType(selected.type) }}</strong> instances in the ontology.
               </p>
-              <button
-                *ngIf="!isInQuery(selected.uri)"
-                (click)="addToQuery(selected)"
-                class="flex-shrink-0 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition"
-                title="Add to query">
-                + Add to query
+              <button (click)="navigateToRootCategory(selected.type)"
+                class="mt-2 text-sm px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition">
+                View all instances →
               </button>
             </div>
-            
+
+            <!-- URI -->
+            <div class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">URI</p>
+              <code class="text-xs text-slate-300 break-all">{{ selected.uri }}</code>
+            </div>
+          </div>
+
+          <!-- Disease Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Disease'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('Disease')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">disease</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Disease Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Routes of Transmission -->
+              <div class="text-sm">
+                <span class="text-slate-400">Routes of Transmission:</span>
+                <ng-container *ngIf="selected.properties?.['routesOfTransmission']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['routesOfTransmission']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Outcomes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Outcomes:</span>
+                <ng-container *ngIf="selected.properties?.['outcomes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['outcomes']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Incubation Period -->
+              <div class="text-sm">
+                <span class="text-slate-400">Incubation Period:</span>
+                <ng-container *ngIf="selected.properties?.['incubationPeriod']; else noData">
+                  <span class="text-slate-300 ml-1">{{ selected.properties?.['incubationPeriod'] }}</span>
+                </ng-container>
+              </div>
+            </div>
+
             <ng-container *ngIf="relatedEntities.length > 0">
               <div *ngFor="let group of getGroupedRelatedEntities()">
                 <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
                 <div class="flex flex-wrap gap-1 ml-2">
-                  <div
-                    *ngFor="let e of group.entities"
-                    class="relative group/entity pointer-events-none">
-                    <button
-                      (click)="selectEntity(e)"
-                      class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
                       [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
                       [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
                       [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
                       {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
                     </button>
-                    <!-- Toggle Add/Remove button -->
-                    <button
-                      (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
-                      [class.bg-indigo-500]="!isInQuery(e.uri)"
-                      [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
-                      [class.bg-red-500]="isInQuery(e.uri)"
-                      [class.hover:bg-red-600]="isInQuery(e.uri)"
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
                       [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
                       {{ isInQuery(e.uri) ? '✕' : '+' }}
                     </button>
@@ -639,49 +727,842 @@
                 </div>
               </div>
             </ng-container>
-            
-            <p *ngIf="relatedEntities.length === 0" class="text-slate-500">
-              No information available
-            </p>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
           </div>
 
-          <!-- Non-Disease Instance Detail -->
-          <div *ngIf="!selected.isCategory && selected.type !== 'Disease'" class="space-y-4">
+          <!-- Pathogen Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Pathogen'" class="space-y-4">
             <p class="text-slate-300">
-              <strong class="text-white">{{ selected.label }}</strong>
-              {{ getReverseRelationLabel(selected.type) }}:
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('Pathogen')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">pathogen</button>:
             </p>
-            
-            <div *ngIf="relatedEntities.length > 0" class="flex flex-wrap gap-1">
-              <div
-                *ngFor="let e of relatedEntities"
-                class="relative group/entity pointer-events-none">
-                <button
-                  (click)="selectEntity(e)"
-                  class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
-                  [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
-                  [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
-                  [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
-                  {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
-                </button>
-                <!-- Toggle Add/Remove button -->
-                <button
-                  (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
-                  class="absolute -top-1 -right-1 w-5 h-5 rounded-full z-10 text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
-                  [class.bg-indigo-500]="!isInQuery(e.uri)"
-                  [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
-                  [class.bg-red-500]="isInQuery(e.uri)"
-                  [class.hover:bg-red-600]="isInQuery(e.uri)"
-                  [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
-                  {{ isInQuery(e.uri) ? '✕' : '+' }}
-                </button>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Pathogen Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Produces Toxin -->
+              <div class="text-sm">
+                <span class="text-slate-400">Produces Toxin:</span>
+                <ng-container *ngIf="selected.properties?.['producesToxin']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['producesToxin']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Caused Diseases -->
+              <div class="text-sm">
+                <span class="text-slate-400">Causes Diseases:</span>
+                <ng-container *ngIf="selected.properties?.['causedDiseases']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['causedDiseases']}"></ng-container>
+                </ng-container>
               </div>
             </div>
-            
-            <p *ngIf="relatedEntities.length === 0" class="text-slate-500">
-              No related diseases found
-            </p>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
           </div>
+
+          <!-- Vector Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Vector'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a transmission <button (click)="navigateToTypeCategory('Vector')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">vector</button> for:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Vector Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Vector of Diseases -->
+              <div class="text-sm">
+                <span class="text-slate-400">Vector of Diseases:</span>
+                <ng-container *ngIf="selected.properties?.['vectorOfDiseases']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['vectorOfDiseases']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Host Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Host'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a disease <button (click)="navigateToTypeCategory('Host')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">host</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Host Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Susceptible To Diseases -->
+              <div class="text-sm">
+                <span class="text-slate-400">Susceptible To Diseases:</span>
+                <ng-container *ngIf="selected.properties?.['susceptibleToDiseases']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['susceptibleToDiseases']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Composed Of Organisms -->
+              <div class="text-sm">
+                <span class="text-slate-400">Composed Of Organisms:</span>
+                <ng-container *ngIf="selected.properties?.['composedOfOrganisms']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['composedOfOrganisms']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Symptom Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Symptom'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('Symptom')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">symptom</button> or sign:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Symptom Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Present In Diseases -->
+              <div class="text-sm">
+                <span class="text-slate-400">Present in Diseases:</span>
+                <ng-container *ngIf="selected.properties?.['presentInDiseases']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['presentInDiseases']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Hazard Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Hazard'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('Hazard')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">hazard</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Hazard Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Manifested In Events -->
+              <div class="text-sm">
+                <span class="text-slate-400">Manifested in Events:</span>
+                <ng-container *ngIf="selected.properties?.['manifestedInEvents']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['manifestedInEvents']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Route of Transmission Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'RouteOfTransmission'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('RouteOfTransmission')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">route of transmission</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- PHSM Type Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'PHSMType'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('PHSMType')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">public health and social measure</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Animal Type Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'AnimalType'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is an <button (click)="navigateToTypeCategory('AnimalType')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">animal type</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Animal Type Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Taxonomic Rank Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'TaxonomicRank'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('TaxonomicRank')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">taxonomic rank</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Severity Level Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'SeverityLevel'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('SeverityLevel')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">severity level</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Plant Type Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'PlantType'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('PlantType')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">plant type</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Plant Type Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Species Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'Species'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('Species')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">species</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <!-- Species Properties -->
+            <div class="bg-slate-700/30 rounded-lg p-3 space-y-3">
+              <!-- Belongs To -->
+              <div class="text-sm">
+                <span class="text-slate-400">Belongs To:</span>
+                <ng-container *ngIf="selected.properties?.['belongsTo']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['belongsTo']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Taxonomic Rank -->
+              <div class="text-sm">
+                <span class="text-slate-400">Taxonomic Rank:</span>
+                <ng-container *ngIf="selected.properties?.['taxonomicRank']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['taxonomicRank']}"></ng-container>
+                </ng-container>
+              </div>
+
+              <!-- Includes -->
+              <div class="text-sm">
+                <span class="text-slate-400">Includes:</span>
+                <ng-container *ngIf="selected.properties?.['includes']; else noData">
+                  <ng-container *ngTemplateOutlet="entityList; context: {$implicit: selected.properties?.['includes']}"></ng-container>
+                </ng-container>
+              </div>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Toxin Type Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'ToxinType'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('ToxinType')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">toxin type</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Pest Type Instance Detail -->
+          <div *ngIf="!selected.isCategory && !selected.isOwlClass && selected.type === 'PestType'" class="space-y-4">
+            <p class="text-slate-300">
+              <strong class="text-white">{{ selected.label }}</strong> is a <button (click)="navigateToTypeCategory('PestType')" class="text-indigo-400 hover:text-indigo-300 underline cursor-pointer">pest type</button>:
+            </p>
+
+            <!-- Description -->
+            <div *ngIf="selected.description" class="bg-slate-700/30 rounded-lg p-3">
+              <p class="text-xs font-semibold text-slate-400 mb-1">Description</p>
+              <p class="text-sm text-slate-300 leading-relaxed">{{ selected.description }}</p>
+            </div>
+
+            <ng-container *ngIf="relatedEntities.length > 0">
+              <div *ngFor="let group of getGroupedRelatedEntities()">
+                <p class="text-sm text-slate-400 mb-2">{{ getRelationLabel(group.type) }}:</p>
+                <div class="flex flex-wrap gap-1 ml-2">
+                  <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                    <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                      [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                      [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                      [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                      {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                    </button>
+                    <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                      class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                      [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                      [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                      [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                      {{ isInQuery(e.uri) ? '✕' : '+' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Inverse Relationships -->
+            <ng-container *ngTemplateOutlet="inverseRelationships"></ng-container>
+          </div>
+
+          <!-- Reusable Entity Detail Template -->
+          <!-- Reusable Entity List Template -->
+          <ng-template #entityList let-uris>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <ng-container *ngFor="let uri of getUriValuesFromProperty(uris)">
+                <div *ngIf="findEntityByUri(uri) as e" class="relative group/entity pointer-events-none">
+                  <button (click)="selectEntity(e)"
+                    class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                    [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                    [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                    [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                    {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                  </button>
+                  <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                    [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                    [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                    [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                    {{ isInQuery(e.uri) ? '✕' : '+' }}
+                  </button>
+                </div>
+                <div *ngIf="!findEntityByUri(uri)" class="text-sm px-2.5 py-1 rounded-lg bg-slate-600/40 text-slate-400 cursor-not-allowed">
+                  {{ formatPropertyValue(uri) }}
+                </div>
+              </ng-container>
+            </div>
+          </ng-template>
+
+          <!-- No Data Template -->
+          <ng-template #noData>
+            <span class="text-slate-500 text-sm ml-1 italic">No data</span>
+          </ng-template>
+
+          <!-- Inverse Relationships Template -->
+          <ng-template #inverseRelationships>
+            <ng-container *ngIf="getInverseRelationships().length > 0">
+              <div class="border-t border-slate-600 pt-3 mt-3">
+                <p class="text-xs font-semibold text-slate-400 mb-2">Referenced by:</p>
+                <div *ngFor="let group of getInverseRelationships()" class="mb-3">
+                  <p class="text-sm text-slate-400 mb-1">{{ formatPropertyName(group.propertyName) }} ({{ group.entities.length }}):</p>
+                  <div class="flex flex-wrap gap-1 ml-2">
+                    <div *ngFor="let e of group.entities" class="relative group/entity pointer-events-none">
+                      <button (click)="selectEntity(e)" class="text-sm px-2.5 py-1 rounded-lg hover:opacity-80 transition pointer-events-auto"
+                        [ngClass]="{'ring-2 ring-white ring-opacity-50': selected?.uri === e.uri}"
+                        [style.backgroundColor]="isInQuery(e.uri) ? getTypeConfig(e.type)?.color : getTypeConfig(e.type)?.bg"
+                        [style.color]="isInQuery(e.uri) ? 'white' : getTypeConfig(e.type)?.color">
+                        {{ getTypeConfig(e.type)?.icon }} {{ e.label }}
+                      </button>
+                      <button (click)="isInQuery(e.uri) ? removeFromQueryWithoutNavigation(e.uri, $event) : addToQueryWithoutNavigation(e, $event)"
+                        class="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs opacity-0 group-hover/entity:opacity-100 transition flex items-center justify-center pointer-events-auto z-20"
+                        [class.bg-indigo-500]="!isInQuery(e.uri)" [class.hover:bg-indigo-600]="!isInQuery(e.uri)"
+                        [class.bg-red-500]="isInQuery(e.uri)" [class.hover:bg-red-600]="isInQuery(e.uri)"
+                        [title]="isInQuery(e.uri) ? 'Remove from query' : 'Add to query'">
+                        {{ isInQuery(e.uri) ? '✕' : '+' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </ng-template>
         </div>
       </div>
 

@@ -9,9 +9,13 @@ export interface Entity {
   label: string;
   type: EntityType;
   isCategory?: boolean;
+  isOwlClass?: boolean; // True if this is an OWL Class definition
   parent?: string;
   altLabels?: string[];
   taxonomicRank?: string; // Species, Genus, Family, etc.
+  description?: string; // Description from rdfs:comment
+  properties?: Record<string, any>; // Additional properties from RDF
+  subClassOf?: string[]; // For OWL Classes: parent classes
 }
 
 export interface Article {
@@ -31,7 +35,9 @@ export interface TypeConfig {
   plural: string;
 }
 
-export type EntityType = 'Disease' | 'Symptom' | 'Pathogen' | 'Vector' | 'Host' | 'Hazard';
+export type EntityType = 'Disease' | 'Symptom' | 'Pathogen' | 'Vector' | 'Host' | 'Hazard' |
+  'RouteOfTransmission' | 'PHSMType' | 'AnimalType' | 'TaxonomicRank' |
+  'SeverityLevel' | 'PlantType' | 'Species' | 'ToxinType' | 'PestType';
 
 export interface CategoryDef {
   key: string;
@@ -47,6 +53,15 @@ export const TYPE_CONFIG: Record<EntityType, TypeConfig> = {
   Vector: { color: '#f97316', bg: '#fff7ed', icon: '🦟', label: 'Vector', singular: 'as vector', plural: 'as vectors' },
   Host: { color: '#6b7280', bg: '#f3f4f6', icon: '🐾', label: 'Host', singular: 'as host', plural: 'as hosts' },
   Hazard: { color: '#ef4444', bg: '#fef2f2', icon: '⚠️', label: 'Hazard', singular: 'as associated hazard', plural: 'as associated hazards' },
+  RouteOfTransmission: { color: '#8b5cf6', bg: '#faf5ff', icon: '🔄', label: 'Route of Transmission', singular: 'as transmission route', plural: 'as transmission routes' },
+  PHSMType: { color: '#0ea5e9', bg: '#f0f9ff', icon: '🛡️', label: 'PHSM', singular: 'as public health measure', plural: 'as public health measures' },
+  AnimalType: { color: '#84cc16', bg: '#f7fee7', icon: '🦁', label: 'Animal Type', singular: 'as animal type', plural: 'as animal types' },
+  TaxonomicRank: { color: '#14b8a6', bg: '#f0fdfa', icon: '📊', label: 'Taxonomic Rank', singular: 'as taxonomic rank', plural: 'as taxonomic ranks' },
+  SeverityLevel: { color: '#fb923c', bg: '#fff7ed', icon: '📈', label: 'Severity Level', singular: 'as severity level', plural: 'as severity levels' },
+  PlantType: { color: '#22c55e', bg: '#f0fdf4', icon: '🌿', label: 'Plant Type', singular: 'as plant type', plural: 'as plant types' },
+  Species: { color: '#06b6d4', bg: '#ecfeff', icon: '🧬', label: 'Species', singular: 'as species', plural: 'as species' },
+  ToxinType: { color: '#a855f7', bg: '#faf5ff', icon: '☠️', label: 'Toxin Type', singular: 'as toxin type', plural: 'as toxin types' },
+  PestType: { color: '#f43f5e', bg: '#fff1f2', icon: '🐛', label: 'Pest Type', singular: 'as pest type', plural: 'as pest types' },
 };
 
 // Categories
@@ -57,6 +72,15 @@ export const CATEGORIES: CategoryDef[] = [
   { key: 'vectors', label: 'Vectors' },
   { key: 'hosts', label: 'Hosts' },
   { key: 'hazards', label: 'Hazards' },
+  { key: 'routesOfTransmission', label: 'Routes of Transmission' },
+  { key: 'phsmTypes', label: 'Public Health Measures' },
+  { key: 'animalTypes', label: 'Animal Types' },
+  { key: 'taxonomicRanks', label: 'Taxonomic Ranks' },
+  { key: 'severityLevels', label: 'Severity Levels' },
+  { key: 'plantTypes', label: 'Plant Types' },
+  { key: 'species', label: 'Species' },
+  { key: 'toxinTypes', label: 'Toxin Types' },
+  { key: 'pestTypes', label: 'Pest Types' },
 ];
 
 export const RELATION_KEYS = ['symptoms', 'pathogens', 'vectors', 'hosts', 'hazard'];
@@ -69,6 +93,16 @@ export const ECMO_DATA: {
   vectors: Entity[];
   hosts: Entity[];
   hazards: Entity[];
+  routesOfTransmission: Entity[];
+  phsmTypes: Entity[];
+  animalTypes: Entity[];
+  taxonomicRanks: Entity[];
+  severityLevels: Entity[];
+  plantTypes: Entity[];
+  species: Entity[];
+  toxinTypes: Entity[];
+  pestTypes: Entity[];
+  owlClasses: Entity[];
   relations: Record<string, Record<string, string[]>>;
 } = {
   diseases: [
@@ -248,6 +282,18 @@ export const ECMO_DATA: {
     // Environmental
     { uri: 'core:WaterContamination', label: 'Water Contamination', type: 'Hazard', parent: 'core:EnvironmentalHazard' },
   ],
+
+  // New categories - will be populated from real data
+  routesOfTransmission: [],
+  phsmTypes: [],
+  animalTypes: [],
+  taxonomicRanks: [],
+  severityLevels: [],
+  plantTypes: [],
+  species: [],
+  toxinTypes: [],
+  pestTypes: [],
+  owlClasses: [],
 
   relations: {
     'ph:COVID19': { symptoms: ['ph:Fever', 'ph:Cough', 'ph:Fatigue'], pathogens: ['ph:SARS_CoV_2'], hosts: ['ph:Humans'], hazard: ['core:Pandemic'] },
