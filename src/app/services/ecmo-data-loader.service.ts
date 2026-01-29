@@ -1203,32 +1203,29 @@ export class EcmoDataLoaderService {
 
     rootClasses.forEach(rootUri => {
       const entityType = this.getEntityTypeForOwlClass(rootUri);
+      const classInfo = classMap.get(rootUri)!;
 
-      if (entityType) {
-        console.log(`  → Processing root class: ${classMap.get(rootUri)!.label} → ${entityType}`);
+      console.log(`  → Processing root class: ${classInfo.label} → ${entityType}`);
 
-        // Build flat hierarchy for this root class
-        const entities = this.buildFlatHierarchy(
-          rootUri,
-          classMap,
-          hierarchyTree,
-          instancesByClass,
-          entityType
-        );
+      // Build flat hierarchy for this root class
+      const entities = this.buildFlatHierarchy(
+        rootUri,
+        classMap,
+        hierarchyTree,
+        instancesByClass,
+        entityType
+      );
 
-        // Add to the appropriate array based on entity type
-        const key = this.getDataKeyForEntityType(entityType);
-        if (key && result[key]) {
-          (result[key] as Entity[]).push(...entities);
-        }
+      // Add to the appropriate array based on entity type
+      const key = this.getDataKeyForEntityType(entityType);
+      if (key && result[key]) {
+        (result[key] as Entity[]).push(...entities);
+      }
 
-        // Also add root class to owlClasses array
-        const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
-        if (rootClassEntity) {
-          result.owlClasses!.push(rootClassEntity);
-        }
-      } else {
-        console.log(`  ⚠️  Skipping unmapped root class: ${classMap.get(rootUri)!.label}`);
+      // Also add root class to owlClasses array
+      const rootClassEntity = entities.find(e => e.uri === this.convertToShortUri(rootUri));
+      if (rootClassEntity) {
+        result.owlClasses!.push(rootClassEntity);
       }
     });
 
@@ -1296,86 +1293,76 @@ export class EcmoDataLoaderService {
 
   /**
    * Map OWL Class URI to EntityType
+   * Uses intelligent matching to automatically map root classes
+   * Always returns an EntityType (uses fallback if needed)
    */
-  private getEntityTypeForOwlClass(uri: string): EntityType | null {
-    // Main entity type classes - Map ONLY base/root classes, NOT subclasses
-    // Subclasses will be loaded as categories under their parent type
+  private getEntityTypeForOwlClass(uri: string): EntityType {
+    // Step 1: Try exact URI matches first (most precise)
+    const exactMappings: Record<string, EntityType> = {
+      [`${this.PH_PREFIX}Disease`]: 'Disease',
+      [`${this.PH_PREFIX}SignOrSymptom`]: 'Symptom',
+      [`${this.PH_PREFIX}SignOrSyptom`]: 'Symptom',
+      [`${this.CORE_PREFIX}PathogenType`]: 'Pathogen',
+      [`${this.PH_PREFIX}DiseaseVectorType`]: 'Vector',
+      [`${this.PH_PREFIX}DiseaseHostType`]: 'Host',
+      [`${this.CORE_PREFIX}Hazard`]: 'Hazard',
+      [`${this.PH_PREFIX}RouteOfTransmission`]: 'RouteOfTransmission',
+      [`${this.PH_PREFIX}PHSMType`]: 'PHSMType',
+      [`${this.BIO_PREFIX}AnimalType`]: 'AnimalType',
+      [`${this.BIO_PREFIX}TaxonomicRank`]: 'TaxonomicRank',
+      [`${this.CORE_PREFIX}SeverityLevelValue`]: 'SeverityLevel',
+      [`${this.CORE_PREFIX}SeverityLevelScale`]: 'SeverityLevel',
+      [`${this.BIO_PREFIX}PlantType`]: 'PlantType',
+      [`${this.BIO_PREFIX}Species`]: 'Species',
+      [`${this.PH_PREFIX}ToxinType`]: 'ToxinType',
+      [`${this.PH_PREFIX}PestType`]: 'PestType'
+    };
 
-    // Disease - Map only the base Disease class, not InfectiousDisease (which is a subclass)
-    if (uri === `${this.PH_PREFIX}Disease`) {
-      return 'Disease';
+    if (exactMappings[uri]) {
+      return exactMappings[uri];
     }
 
-    // Symptom - Map SignOrSymptom (handles typo SignOrSyptom too)
-    if (uri === `${this.PH_PREFIX}SignOrSymptom` || uri === `${this.PH_PREFIX}SignOrSyptom`) {
-      return 'Symptom';
+    // Step 2: Try intelligent pattern matching based on URI name
+    // Extract the class name from URI (last part after # or /)
+    const uriParts = uri.split(/[/#]/);
+    const className = uriParts[uriParts.length - 1].toLowerCase();
+
+    // Define flexible patterns for matching
+    const patterns: Array<{ pattern: RegExp | string; entityType: EntityType }> = [
+      { pattern: /disease|illness|condition|syndrome/i, entityType: 'Disease' },
+      { pattern: /symptom|sign/i, entityType: 'Symptom' },
+      { pattern: /pathogen|virus|bacteria|parasite|microorganism/i, entityType: 'Pathogen' },
+      { pattern: /vector/i, entityType: 'Vector' },
+      { pattern: /host|animal.*type|population/i, entityType: 'Host' },
+      { pattern: /hazard|risk|danger|threat/i, entityType: 'Hazard' },
+      { pattern: /route|transmission|spread/i, entityType: 'RouteOfTransmission' },
+      { pattern: /phsm|measure|intervention/i, entityType: 'PHSMType' },
+      { pattern: /taxonomic|rank|classification/i, entityType: 'TaxonomicRank' },
+      { pattern: /severity|level|scale/i, entityType: 'SeverityLevel' },
+      { pattern: /plant/i, entityType: 'PlantType' },
+      { pattern: /species|organism/i, entityType: 'Species' },
+      { pattern: /toxin|poison/i, entityType: 'ToxinType' },
+      { pattern: /pest/i, entityType: 'PestType' }
+    ];
+
+    // Try to match against patterns
+    for (const { pattern, entityType } of patterns) {
+      if (pattern instanceof RegExp) {
+        if (pattern.test(className)) {
+          console.log(`  🎯 Auto-mapped "${className}" → ${entityType} (pattern match)`);
+          return entityType;
+        }
+      } else {
+        if (className.includes(pattern.toLowerCase())) {
+          console.log(`  🎯 Auto-mapped "${className}" → ${entityType} (string match)`);
+          return entityType;
+        }
+      }
     }
 
-    // Pathogen - Map only base PathogenType
-    if (uri === `${this.CORE_PREFIX}PathogenType`) {
-      return 'Pathogen';
-    }
-
-    // Vector - Map DiseaseVectorType (primary class)
-    if (uri === `${this.PH_PREFIX}DiseaseVectorType`) {
-      return 'Vector';
-    }
-
-    // Host
-    if (uri === `${this.PH_PREFIX}DiseaseHostType`) {
-      return 'Host';
-    }
-
-    // Hazard - Map only base Hazard class, not specific subtypes
-    if (uri === `${this.CORE_PREFIX}Hazard`) {
-      return 'Hazard';
-    }
-
-    // Route of Transmission
-    if (uri === `${this.PH_PREFIX}RouteOfTransmission`) {
-      return 'RouteOfTransmission';
-    }
-
-    // PHSM Type
-    if (uri === `${this.PH_PREFIX}PHSMType`) {
-      return 'PHSMType';
-    }
-
-    // Animal Type
-    if (uri === `${this.BIO_PREFIX}AnimalType`) {
-      return 'AnimalType';
-    }
-
-    // Taxonomic Rank
-    if (uri === `${this.BIO_PREFIX}TaxonomicRank`) {
-      return 'TaxonomicRank';
-    }
-
-    // Severity Level
-    if (uri === `${this.CORE_PREFIX}SeverityLevelValue` || uri === `${this.CORE_PREFIX}SeverityLevelScale`) {
-      return 'SeverityLevel';
-    }
-
-    // Plant Type
-    if (uri === `${this.BIO_PREFIX}PlantType`) {
-      return 'PlantType';
-    }
-
-    // Species
-    if (uri === `${this.BIO_PREFIX}Species`) {
-      return 'Species';
-    }
-
-    // Toxin Type
-    if (uri === `${this.PH_PREFIX}ToxinType`) {
-      return 'ToxinType';
-    }
-
-    // Pest Type
-    if (uri === `${this.PH_PREFIX}PestType`) {
-      return 'PestType';
-    }
-
-    return null; // Not a class we're interested in
+    // Step 3: If still no match, use a default fallback
+    // Use 'Hazard' as a generic fallback for unmapped classes
+    console.log(`  ⚠️  Using fallback mapping for "${className}" → Hazard`);
+    return 'Hazard';
   }
 }
