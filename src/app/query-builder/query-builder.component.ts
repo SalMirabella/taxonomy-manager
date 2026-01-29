@@ -343,17 +343,85 @@ export class QueryBuilderComponent implements OnInit {
    * Navigate to the OWL Class definition of a given entity type
    */
   navigateToTypeCategory(entityType: EntityType): void {
-    // First, try to find the OWL Class for this type
-    const owlClass = this.ecmoData.owlClasses.find((c: Entity) => c.type === entityType && c.isOwlClass);
+    // Strategy: Find the ROOT OWL class (parent), not a subclass
+    // 1. Look for OWL class whose URI ends exactly with the entityType name (e.g., "Disease" not "InfectiousDisease")
+    // 2. Look for OWL class WITHOUT subClassOf (it's the root class)
+    // 3. Fallback to any OWL class for this type
 
-    if (owlClass) {
-      // Select the OWL Class definition
-      this.selectEntity(owlClass);
+    const allCandidates = [
+      ...this.ecmoData.owlClasses.filter(c => c.type === entityType && c.isOwlClass),
+      ...this.getEntitiesForType(entityType).filter(c => c.isOwlClass && c.type === entityType)
+    ];
+
+    if (allCandidates.length === 0) {
+      // No OWL class found, fallback to root category
+      this.navigateToRootCategory(entityType);
       return;
     }
 
-    // Fallback: find the root category if no OWL Class exists
-    this.navigateToRootCategory(entityType);
+    // Priority 1: Find class whose URI ends with exactly the entityType
+    // Must be an exact match after the last separator (e.g., /Disease not /InfectiousDisease, /Symptom not /SignOrSymptom)
+    let owlClass = allCandidates.find(c => {
+      // Split URI by common separators (/, #)
+      const uriParts = c.uri.split(/[/#]/);
+      const lastPart = uriParts[uriParts.length - 1];
+
+      // Exact match required - must be identical to entityType
+      return lastPart === entityType;
+    });
+
+    // Priority 2: Find class without subClassOf (it's the root/parent class)
+    if (!owlClass) {
+      owlClass = allCandidates.find(c => !c.subClassOf || c.subClassOf.length === 0);
+    }
+
+    // Priority 3: Find class with exact label match
+    if (!owlClass) {
+      const typeConfig = this.getTypeConfig(entityType);
+      const expectedLabel = typeConfig?.label || entityType;
+      owlClass = allCandidates.find(c => c.label === expectedLabel);
+    }
+
+    // Priority 4: Find class with fewest subClassOf (most "base" class for this type)
+    if (!owlClass) {
+      const sorted = [...allCandidates].sort((a, b) => {
+        const aCount = a.subClassOf?.length || 0;
+        const bCount = b.subClassOf?.length || 0;
+        return aCount - bCount;
+      });
+      owlClass = sorted[0];
+    }
+
+    // Fallback: Just take the first one (should never reach here)
+    if (!owlClass) {
+      owlClass = allCandidates[0];
+    }
+
+    this.selectEntity(owlClass);
+  }
+
+  /**
+   * Get entities array for a given type
+   */
+  private getEntitiesForType(entityType: EntityType): Entity[] {
+    const entitiesMap: Record<EntityType, Entity[]> = {
+      Disease: this.ecmoData.diseases,
+      Symptom: this.ecmoData.symptoms,
+      Pathogen: this.ecmoData.pathogens,
+      Vector: this.ecmoData.vectors,
+      Host: this.ecmoData.hosts,
+      Hazard: this.ecmoData.hazards,
+      RouteOfTransmission: this.ecmoData.routesOfTransmission,
+      PHSMType: this.ecmoData.phsmTypes,
+      AnimalType: this.ecmoData.animalTypes,
+      TaxonomicRank: this.ecmoData.taxonomicRanks,
+      SeverityLevel: this.ecmoData.severityLevels,
+      PlantType: this.ecmoData.plantTypes,
+      Species: this.ecmoData.species,
+      ToxinType: this.ecmoData.toxinTypes,
+      PestType: this.ecmoData.pestTypes,
+    };
+    return entitiesMap[entityType] || [];
   }
 
   /**
@@ -399,6 +467,57 @@ export class QueryBuilderComponent implements OnInit {
     };
 
     this.selectEntity(virtualAllInstances);
+  }
+
+  /**
+   * Map property names to their target EntityTypes for navigation
+   */
+  private propertyToEntityTypeMap: Record<string, EntityType> = {
+    'hasRouteOfTransmission': 'RouteOfTransmission',
+    'hasOutcome': 'SeverityLevel',
+    'hasRank': 'TaxonomicRank',
+    'producesToxin': 'ToxinType',
+    'causesDiseases': 'Disease',
+    'isVectorOf': 'Disease',
+    'isSusceptibleHostOf': 'Disease',
+    'isSignOrSymptomOf': 'Disease',
+    'isManifestationIn': 'Hazard',
+    // Note: Some properties like 'belongsTo', 'includes', 'hasIncubationPeriod', 'composedOfOrganisms'
+    // don't map to a specific entity type or are context-dependent
+  };
+
+  /**
+   * Get the target EntityType for a property (if it's navigable)
+   */
+  getPropertyTargetType(property: string): EntityType | null {
+    return this.propertyToEntityTypeMap[property] || null;
+  }
+
+  /**
+   * Check if a property is navigable (maps to an entity type)
+   */
+  isPropertyNavigable(property: string): boolean {
+    return property in this.propertyToEntityTypeMap;
+  }
+
+  /**
+   * Navigate to the OWL class for a given property
+   */
+  navigateToPropertyClass(property: string): void {
+    const targetType = this.getPropertyTargetType(property);
+    if (targetType) {
+      this.navigateToTypeCategory(targetType);
+    }
+  }
+
+  /**
+   * Get the OWL Class entity for a property (for adding to query)
+   */
+  getOwlClassForProperty(property: string): Entity | null {
+    const targetType = this.getPropertyTargetType(property);
+    if (!targetType) return null;
+
+    return this.ecmoData.owlClasses.find((c: Entity) => c.type === targetType && c.isOwlClass) || null;
   }
 
   /**

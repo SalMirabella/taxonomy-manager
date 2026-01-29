@@ -1044,55 +1044,80 @@ export class EcmoDataLoaderService {
    * Map OWL Class URI to EntityType
    */
   private getEntityTypeForOwlClass(uri: string): EntityType | null {
-    // Main entity type classes
-    if (uri === `${this.PH_PREFIX}Disease` || uri === `${this.PH_PREFIX}InfectiousDisease`) {
+    // Main entity type classes - Map ONLY base/root classes, NOT subclasses
+    // Subclasses will be loaded as categories under their parent type
+
+    // Disease - Map only the base Disease class, not InfectiousDisease (which is a subclass)
+    if (uri === `${this.PH_PREFIX}Disease`) {
       return 'Disease';
     }
+
+    // Symptom - Map SignOrSymptom (handles typo SignOrSyptom too)
     if (uri === `${this.PH_PREFIX}SignOrSymptom` || uri === `${this.PH_PREFIX}SignOrSyptom`) {
       return 'Symptom';
     }
-    if (uri === `${this.CORE_PREFIX}PathogenType` ||
-        uri === `${this.PH_PREFIX}PathogenicVirusType` ||
-        uri === `${this.PH_PREFIX}PathogenicBacteriumType` ||
-        uri === `${this.PH_PREFIX}PathogenicProtistType`) {
+
+    // Pathogen - Map only base PathogenType
+    if (uri === `${this.CORE_PREFIX}PathogenType`) {
       return 'Pathogen';
     }
-    if (uri === `${this.PH_PREFIX}DiseaseVectorType` || uri === `${this.BIO_PREFIX}Vector`) {
+
+    // Vector - Map DiseaseVectorType (primary class)
+    if (uri === `${this.PH_PREFIX}DiseaseVectorType`) {
       return 'Vector';
     }
+
+    // Host
     if (uri === `${this.PH_PREFIX}DiseaseHostType`) {
       return 'Host';
     }
-    if (uri === `${this.CORE_PREFIX}Hazard` ||
-        uri === `${this.CORE_PREFIX}HydroMeteorologicalHazard` ||
-        uri === `${this.CORE_PREFIX}TechnologicalHazard` ||
-        uri === `${this.CORE_PREFIX}BiologicalHazard`) {
+
+    // Hazard - Map only base Hazard class, not specific subtypes
+    if (uri === `${this.CORE_PREFIX}Hazard`) {
       return 'Hazard';
     }
+
+    // Route of Transmission
     if (uri === `${this.PH_PREFIX}RouteOfTransmission`) {
       return 'RouteOfTransmission';
     }
+
+    // PHSM Type
     if (uri === `${this.PH_PREFIX}PHSMType`) {
       return 'PHSMType';
     }
+
+    // Animal Type
     if (uri === `${this.BIO_PREFIX}AnimalType`) {
       return 'AnimalType';
     }
+
+    // Taxonomic Rank
     if (uri === `${this.BIO_PREFIX}TaxonomicRank`) {
       return 'TaxonomicRank';
     }
+
+    // Severity Level
     if (uri === `${this.CORE_PREFIX}SeverityLevelValue` || uri === `${this.CORE_PREFIX}SeverityLevelScale`) {
       return 'SeverityLevel';
     }
+
+    // Plant Type
     if (uri === `${this.BIO_PREFIX}PlantType`) {
       return 'PlantType';
     }
+
+    // Species
     if (uri === `${this.BIO_PREFIX}Species`) {
       return 'Species';
     }
+
+    // Toxin Type
     if (uri === `${this.PH_PREFIX}ToxinType`) {
       return 'ToxinType';
     }
+
+    // Pest Type
     if (uri === `${this.PH_PREFIX}PestType`) {
       return 'PestType';
     }
